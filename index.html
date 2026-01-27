@@ -61,7 +61,7 @@
     );
 
     const { data, error } = await supabase
-      .from("entregas")
+      .from("pedidos")
       .select("*")
       .eq("guia", guia)
       .single();
@@ -144,3 +144,4 @@
 
 </body>
 </html>
+
