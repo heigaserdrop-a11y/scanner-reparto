@@ -56,3 +56,40 @@
       );
     } else {
       alert("No se encontraron cámaras");
+    }
+  }).catch(err => {
+    alert("Error al acceder a la cámara");
+    console.error(err);
+  });
+
+  /* 📦 GUARDAR ESTADO */
+  async function marcar(estado) {
+    if (!guiaActual) {
+      alert("Primero escanea una guía");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("entregas")
+      .insert([
+        {
+          guia: guiaActual,
+          estado: estado,
+          fecha: new Date()
+        }
+      ]);
+
+    if (error) {
+      alert("❌ Error al guardar en la base de datos");
+      console.error(error);
+    } else {
+      alert("✅ Guía " + guiaActual + " marcada como " + estado);
+      guiaActual = "";
+      document.getElementById("guia").innerText = "";
+    }
+  }
+</script>
+
+</body>
+</html>
+
