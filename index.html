@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HEIGASER - Escáner</title>
 
-  <!-- Librería escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
@@ -39,8 +38,8 @@
 <script>
   let guiaActual = "";
   let datosGuia = null;
+  let scannerActivo = true;
 
-  // ESCÁNER
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
@@ -48,7 +47,12 @@
     html5QrCode.start(
       camaraTrasera,
       { fps: 10, qrbox: 250 },
-      texto => buscarGuia(texto)
+      texto => {
+        if (scannerActivo) {
+          scannerActivo = false;
+          buscarGuia(texto);
+        }
+      }
     );
   });
 
@@ -62,23 +66,23 @@
 
     const { data, error } = await supabase
       .from("pedidos")
-      .select("*")
+      .select("guia, nombre, recaudo, estado")
       .eq("guia", guia)
       .single();
 
     if (error || !data) {
       mostrarMensaje("❌ Guía no encontrada en la base de datos", "warn");
+      scannerActivo = true;
       return;
     }
 
-    guiaActual = guia;
+    guiaActual = data.guia;
     datosGuia = data;
 
-    document.getElementById("guia").innerText =
-      "Guía: " + data.guia;
-
+    document.getElementById("guia").innerText = "Guía: " + data.guia;
     document.getElementById("datos").innerText =
-      "Cliente: " + data.nombre + " | Recaudo: $" + data.recaudo.toLocaleString();
+      "Cliente: " + (data.nombre || "—") +
+      " | Recaudo: $" + Number(data.recaudo || 0).toLocaleString();
   }
 
   async function marcar(estado) {
@@ -100,7 +104,7 @@
     );
 
     const { error } = await supabase
-      .from("entregas")
+      .from("pedidos")
       .update({ estado })
       .eq("guia", guiaActual);
 
@@ -118,6 +122,7 @@
 
     guiaActual = "";
     datosGuia = null;
+    scannerActivo = true;
     document.getElementById("guia").innerText = "";
     document.getElementById("datos").innerText = "";
   }
@@ -144,4 +149,3 @@
 
 </body>
 </html>
-
