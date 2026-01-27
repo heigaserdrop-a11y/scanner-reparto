@@ -5,19 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HEIGASER - Escáner</title>
 
+  <!-- Librería del escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
 
-  <h1>HEIGASER</h1>
+  <h1 style="margin-bottom:5px;">HEIGASER</h1>
   <h2>Escanear Guía</h2>
 
   <div id="reader" style="width:100%; max-width:400px; margin:auto;"></div>
 
-  <p id="guia" style="font-size:18px; font-weight:bold;"></p>
-  <p id="datos" style="font-size:16px;"></p>
+  <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
 
+  <!-- MENSAJE -->
   <div id="mensaje" style="
     display:none;
     margin-top:15px;
@@ -27,36 +28,48 @@
     font-weight:bold;
   "></div>
 
-  <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%;">
+  <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
     ✅ ENTREGADO
   </button>
 
-  <button onclick="marcar('REINTENTO')" style="padding:15px; margin:10px; width:90%;">
+  <button onclick="marcar('REINTENTO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
     🔁 REINTENTO
   </button>
 
 <script>
   let guiaActual = "";
-  let datosGuia = null;
-  let scannerActivo = true;
 
+  // ===== ESCÁNER =====
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
-    const camaraTrasera = cameras[cameras.length - 1].id;
-    html5QrCode.start(
-      camaraTrasera,
-      { fps: 10, qrbox: 250 },
-      texto => {
-        if (scannerActivo) {
-          scannerActivo = false;
-          buscarGuia(texto);
+    if (cameras && cameras.length > 0) {
+      const camaraTrasera = cameras[cameras.length - 1].id;
+
+      html5QrCode.start(
+        camaraTrasera,
+        { fps: 10, qrbox: 250 },
+        texto => {
+          guiaActual = texto;
+          document.getElementById("guia").innerText =
+            "Guía escaneada: " + texto;
         }
-      }
-    );
+      );
+    } else {
+      alert("No se encontraron cámaras");
+    }
+  }).catch(err => {
+    alert("Error al acceder a la cámara");
+    console.error(err);
   });
 
-  async function buscarGuia(guia) {
+  // ===== FUNCIÓN CON CONTROL REAL DE ESTADOS =====
+  async function marcar(estado) {
+    if (!guiaActual) {
+      mostrarMensaje("⚠️ Primero escanea una guía", "warn");
+      return;
+    }
+
     await cargarSupabase();
 
     const supabase = window.supabase.createClient(
@@ -64,86 +77,93 @@
       "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
     );
 
-    const { data, error } = await supabase
-      .from("pedidos")
-      .select("guia, nombre, recaudo, estado")
-      .eq("guia", guia)
+    // Buscar la guía
+    const { data, error: fetchError } = await supabase
+      .from("entregas")
+      .select("estado")
+      .eq("guia", guiaActual)
       .single();
 
-    if (error || !data) {
-      mostrarMensaje("❌ Guía no encontrada en la base de datos", "warn");
-      scannerActivo = true;
-      return;
+    // Si NO existe → insertar
+    if (fetchError && fetchError.code === "PGRST116") {
+      const { error: insertError } = await supabase
+        .from("entregas")
+        .insert([{ guia: guiaActual, estado }]);
+
+      if (insertError) {
+        mostrarMensaje("❌ Error al guardar", "error");
+        return;
+      }
+
+      mostrarMensaje(
+        estado === "ENTREGADO"
+          ? "✅ Pedido entregado correctamente"
+          : "🔁 Pedido marcado como reintento",
+        "ok"
+      );
+
+    } else {
+      // Si ya existe
+      if (data.estado === "ENTREGADO") {
+        mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
+        return;
+      }
+
+      if (data.estado === "REINTENTO" && estado === "ENTREGADO") {
+        const { error: updateError } = await supabase
+          .from("entregas")
+          .update({ estado: "ENTREGADO", updated_at: new Date() })
+          .eq("guia", guiaActual);
+
+        if (updateError) {
+          mostrarMensaje("❌ Error al actualizar", "error");
+          return;
+        }
+
+        mostrarMensaje("✅ Pedido entregado correctamente", "ok");
+      } else {
+        mostrarMensaje("⚠️ Estado no permitido", "warn");
+        return;
+      }
     }
-
-    guiaActual = data.guia;
-    datosGuia = data;
-
-    document.getElementById("guia").innerText = "Guía: " + data.guia;
-    document.getElementById("datos").innerText =
-      "Cliente: " + (data.nombre || "—") +
-      " | Recaudo: $" + Number(data.recaudo || 0).toLocaleString();
-  }
-
-  async function marcar(estado) {
-    if (!guiaActual || !datosGuia) {
-      mostrarMensaje("⚠️ Escanea una guía válida", "warn");
-      return;
-    }
-
-    if (datosGuia.estado === "ENTREGADO") {
-      mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
-      return;
-    }
-
-    await cargarSupabase();
-
-    const supabase = window.supabase.createClient(
-      "https://dqjnarpnszgmsvmbebzk.supabase.co",
-      "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
-    );
-
-    const { error } = await supabase
-      .from("pedidos")
-      .update({ estado })
-      .eq("guia", guiaActual);
-
-    if (error) {
-      mostrarMensaje("❌ Error al actualizar", "warn");
-      return;
-    }
-
-    mostrarMensaje(
-      estado === "ENTREGADO"
-        ? "✅ Pedido entregado correctamente"
-        : "🔁 Pedido marcado como reintento",
-      "ok"
-    );
 
     guiaActual = "";
-    datosGuia = null;
-    scannerActivo = true;
     document.getElementById("guia").innerText = "";
-    document.getElementById("datos").innerText = "";
   }
 
+  // ===== CARGAR SUPABASE =====
   function cargarSupabase() {
     return new Promise(resolve => {
-      if (window.supabase) return resolve();
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-      s.onload = resolve;
-      document.body.appendChild(s);
+      if (window.supabase) {
+        resolve();
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      script.onload = resolve;
+      document.body.appendChild(script);
     });
   }
 
+  // ===== MENSAJES =====
   function mostrarMensaje(texto, tipo) {
-    const m = document.getElementById("mensaje");
-    m.innerText = texto;
-    m.style.display = "block";
-    m.style.background = tipo === "ok" ? "#e6f9ee" : "#fff3cd";
-    m.style.border = "2px solid";
-    setTimeout(() => m.style.display = "none", 3000);
+    const msg = document.getElementById("mensaje");
+    msg.innerText = texto;
+    msg.style.display = "block";
+
+    if (tipo === "ok") {
+      msg.style.background = "#e6f9ee";
+      msg.style.color = "#1b7a4a";
+      msg.style.border = "2px solid #1b7a4a";
+    } else {
+      msg.style.background = "#fff3cd";
+      msg.style.color = "#856404";
+      msg.style.border = "2px solid #856404";
+    }
+
+    setTimeout(() => {
+      msg.style.display = "none";
+    }, 3000);
   }
 </script>
 
