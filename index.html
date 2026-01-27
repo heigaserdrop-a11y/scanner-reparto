@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HEIGASER - Escáner</title>
 
+  <!-- Escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -27,26 +30,36 @@
   </button>
 
 <script>
-  // 🔐 CONEXIÓN SUPABASE
-  const supabaseUrl = "TU_URL_DE_SUPABASE";
-  const supabaseKey = "TU_ANON_KEY";
-  const supabase = supabasejs.createClient(supabaseUrl, supabaseKey);
+  // 🔐 SUPABASE (CAMBIA SOLO ESTO)
+  const SUPABASE_URL = "TU_URL_DE_SUPABASE";
+  const SUPABASE_KEY = "TU_ANON_KEY";
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   let guiaActual = "";
-
   const html5QrCode = new Html5Qrcode("reader");
 
+  // 🔥 INICIAR CÁMARA TRASERA
   Html5Qrcode.getCameras().then(cameras => {
-    if (cameras.length) {
-      html5QrCode.start(
-        cameras[cameras.length - 1].id,
-        { fps: 10, qrbox: 250 },
-        text => {
-          guiaActual = text;
-          document.getElementById("guia").innerText = "Guía escaneada: " + text;
-        }
-      );
+    if (!cameras || cameras.length === 0) {
+      alert("No se detectaron cámaras");
+      return;
     }
+
+    const camaraTrasera = cameras[cameras.length - 1].id;
+
+    html5QrCode.start(
+      camaraTrasera,
+      { fps: 10, qrbox: 250 },
+      texto => {
+        guiaActual = texto;
+        document.getElementById("guia").innerText =
+          "Guía escaneada: " + texto;
+      }
+    );
+
+  }).catch(err => {
+    alert("Error al acceder a la cámara");
+    console.error(err);
   });
 
   async function marcar(estado) {
