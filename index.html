@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HEIGASER - Escáner</title>
 
-  <!-- Escáner (NO TOCAR) -->
+  <!-- Escáner QR -->
   <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
@@ -29,7 +32,13 @@
 <script>
   let guiaActual = "";
 
-  // 🔥 ESCÁNER (IGUAL AL QUE FUNCIONABA)
+  /* 🔥 SUPABASE (YA CONFIGURADO) */
+  const supabase = window.supabase.createClient(
+    "https://dqjnarpnszgmsvmbebzk.supabase.co",
+    "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
+  );
+
+  /* 📷 ESCÁNER */
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
@@ -45,54 +54,5 @@
             "Guía escaneada: " + texto;
         }
       );
-    }
-  }).catch(err => {
-    alert("Error al acceder a la cámara");
-    console.error(err);
-  });
-
-  // 🧠 CARGAR SUPABASE SOLO CUANDO SE NECESITA
-  async function marcar(estado) {
-    if (!guiaActual) {
-      alert("Primero escanea una guía");
-      return;
-    }
-
-    // Cargar Supabase dinámicamente
-    await cargarSupabase();
-
-    const supabase = window.supabase.createClient(
-      "TU_URL_DE_SUPABASE",
-      "TU_ANON_KEY"
-    );
-
-    const { error } = await supabase
-      .from("entregas")
-      .insert([{ guia: guiaActual, estado: estado }]);
-
-    if (error) {
-      alert("Error al guardar");
-      console.error(error);
     } else {
-      alert("Guía " + guiaActual + " marcada como " + estado);
-      guiaActual = "";
-      document.getElementById("guia").innerText = "";
-    }
-  }
-
-  function cargarSupabase() {
-    return new Promise(resolve => {
-      if (window.supabase) {
-        resolve();
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-      script.onload = resolve;
-      document.body.appendChild(script);
-    });
-  }
-</script>
-
-</body>
-</html>
+      alert("No se encontraron cámaras");
