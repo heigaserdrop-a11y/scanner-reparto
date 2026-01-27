@@ -18,7 +18,7 @@
 
   <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
 
-  <!-- MENSAJE BONITO -->
+  <!-- MENSAJE -->
   <div id="mensaje" style="
     display:none;
     margin-top:15px;
@@ -55,13 +55,15 @@
             "Guía escaneada: " + texto;
         }
       );
+    } else {
+      alert("No se encontraron cámaras");
     }
   }).catch(err => {
     alert("Error al acceder a la cámara");
     console.error(err);
   });
 
-  // ===== GUARDAR ESTADO =====
+  // ===== FUNCIÓN CON CONTROL REAL DE ESTADOS =====
   async function marcar(estado) {
     if (!guiaActual) {
       mostrarMensaje("⚠️ Primero escanea una guía", "warn");
@@ -75,26 +77,58 @@
       "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
     );
 
-    const { error } = await supabase
+    // Buscar la guía
+    const { data, error: fetchError } = await supabase
       .from("entregas")
-      .insert([{ guia: guiaActual, estado: estado }]);
+      .select("estado")
+      .eq("guia", guiaActual)
+      .single();
 
-    if (error) {
-      if (error.code === "23505") {
-        mostrarMensaje("⚠️ Esta guía ya fue registrada", "warn");
-      } else {
+    // Si NO existe → insertar
+    if (fetchError && fetchError.code === "PGRST116") {
+      const { error: insertError } = await supabase
+        .from("entregas")
+        .insert([{ guia: guiaActual, estado }]);
+
+      if (insertError) {
         mostrarMensaje("❌ Error al guardar", "error");
+        return;
       }
+
+      mostrarMensaje(
+        estado === "ENTREGADO"
+          ? "✅ Pedido entregado correctamente"
+          : "🔁 Pedido marcado como reintento",
+        "ok"
+      );
+
     } else {
-      if (estado === "ENTREGADO") {
+      // Si ya existe
+      if (data.estado === "ENTREGADO") {
+        mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
+        return;
+      }
+
+      if (data.estado === "REINTENTO" && estado === "ENTREGADO") {
+        const { error: updateError } = await supabase
+          .from("entregas")
+          .update({ estado: "ENTREGADO", updated_at: new Date() })
+          .eq("guia", guiaActual);
+
+        if (updateError) {
+          mostrarMensaje("❌ Error al actualizar", "error");
+          return;
+        }
+
         mostrarMensaje("✅ Pedido entregado correctamente", "ok");
       } else {
-        mostrarMensaje("🔁 Pedido marcado como reintento", "warn");
+        mostrarMensaje("⚠️ Estado no permitido", "warn");
+        return;
       }
-
-      guiaActual = "";
-      document.getElementById("guia").innerText = "";
     }
+
+    guiaActual = "";
+    document.getElementById("guia").innerText = "";
   }
 
   // ===== CARGAR SUPABASE =====
