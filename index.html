@@ -17,6 +17,8 @@
   <div id="reader" style="width:100%; max-width:400px; margin:auto;"></div>
 
   <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
+  <p id="nombre" style="font-size:16px;"></p>
+  <p id="recaudo" style="font-size:16px;"></p>
 
   <!-- MENSAJE -->
   <div id="mensaje" style="
@@ -38,100 +40,103 @@
 
 <script>
   let guiaActual = "";
+  let estadoActual = "";
+
+  // ===== SUPABASE =====
+  function getSupabase() {
+    return window.supabase.createClient(
+      "https://dqjnarpnszgmsvmbebzk.supabase.co",
+      "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
+    );
+  }
 
   // ===== ESCÁNER =====
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
-    if (cameras && cameras.length > 0) {
-      const camaraTrasera = cameras[cameras.length - 1].id;
+    const camaraTrasera = cameras[cameras.length - 1].id;
 
-      html5QrCode.start(
-        camaraTrasera,
-        { fps: 10, qrbox: 250 },
-        texto => {
-          guiaActual = texto;
-          document.getElementById("guia").innerText =
-            "Guía escaneada: " + texto;
+    html5QrCode.start(
+      camaraTrasera,
+      { fps: 10, qrbox: 250 },
+      async texto => {
+        guiaActual = texto;
+        document.getElementById("guia").innerText = "Guía: " + texto;
+
+        await cargarSupabase();
+        const supabase = getSupabase();
+
+        const { data, error } = await supabase
+          .from("entregas")
+          .select("nombre, recaudo, estado")
+          .eq("guia", texto)
+          .single();
+
+        if (error || !data) {
+          mostrarMensaje("❌ Guía no encontrada en la base", "warn");
+          limpiarDatos();
+          return;
         }
-      );
-    } else {
-      alert("No se encontraron cámaras");
-    }
-  }).catch(err => {
-    alert("Error al acceder a la cámara");
-    console.error(err);
+
+        estadoActual = data.estado;
+
+        document.getElementById("nombre").innerText =
+          "Cliente: " + data.nombre;
+
+        document.getElementById("recaudo").innerText =
+          "Recaudo: $" + Number(data.recaudo).toLocaleString("es-CO");
+
+        if (estadoActual === "ENTREGADO") {
+          mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
+        }
+      }
+    );
   });
 
-  // ===== FUNCIÓN CON CONTROL REAL DE ESTADOS =====
-  async function marcar(estado) {
+  // ===== MARCAR ESTADO =====
+  async function marcar(nuevoEstado) {
     if (!guiaActual) {
       mostrarMensaje("⚠️ Primero escanea una guía", "warn");
       return;
     }
 
-    await cargarSupabase();
-
-    const supabase = window.supabase.createClient(
-      "https://dqjnarpnszgmsvmbebzk.supabase.co",
-      "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
-    );
-
-    // Buscar la guía
-    const { data, error: fetchError } = await supabase
-      .from("entregas")
-      .select("estado")
-      .eq("guia", guiaActual)
-      .single();
-
-    // Si NO existe → insertar
-    if (fetchError && fetchError.code === "PGRST116") {
-      const { error: insertError } = await supabase
-        .from("entregas")
-        .insert([{ guia: guiaActual, estado }]);
-
-      if (insertError) {
-        mostrarMensaje("❌ Error al guardar", "error");
-        return;
-      }
-
-      mostrarMensaje(
-        estado === "ENTREGADO"
-          ? "✅ Pedido entregado correctamente"
-          : "🔁 Pedido marcado como reintento",
-        "ok"
-      );
-
-    } else {
-      // Si ya existe
-      if (data.estado === "ENTREGADO") {
-        mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
-        return;
-      }
-
-      if (data.estado === "REINTENTO" && estado === "ENTREGADO") {
-        const { error: updateError } = await supabase
-          .from("entregas")
-          .update({ estado: "ENTREGADO", updated_at: new Date() })
-          .eq("guia", guiaActual);
-
-        if (updateError) {
-          mostrarMensaje("❌ Error al actualizar", "error");
-          return;
-        }
-
-        mostrarMensaje("✅ Pedido entregado correctamente", "ok");
-      } else {
-        mostrarMensaje("⚠️ Estado no permitido", "warn");
-        return;
-      }
+    if (estadoActual === "ENTREGADO") {
+      mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
+      return;
     }
 
-    guiaActual = "";
-    document.getElementById("guia").innerText = "";
+    await cargarSupabase();
+    const supabase = getSupabase();
+
+    const { error } = await supabase
+      .from("entregas")
+      .update({ estado: nuevoEstado })
+      .eq("guia", guiaActual);
+
+    if (error) {
+      mostrarMensaje("❌ Error al actualizar", "error");
+      return;
+    }
+
+    mostrarMensaje(
+      nuevoEstado === "ENTREGADO"
+        ? "✅ Pedido entregado correctamente"
+        : "🔁 Pedido marcado como reintento",
+      "ok"
+    );
+
+    limpiarDatos();
   }
 
-  // ===== CARGAR SUPABASE =====
+  // ===== UTILIDADES =====
+  function limpiarDatos() {
+    guiaActual = "";
+    estadoActual = "";
+    document.getElementById("guia").innerText = "";
+    document.getElementById("nombre").innerText = "";
+    document.getElementById("recaudo").innerText = "";
+  }
+
   function cargarSupabase() {
     return new Promise(resolve => {
       if (window.supabase) {
@@ -145,7 +150,6 @@
     });
   }
 
-  // ===== MENSAJES =====
   function mostrarMensaje(texto, tipo) {
     const msg = document.getElementById("mensaje");
     msg.innerText = texto;
