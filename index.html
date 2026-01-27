@@ -39,7 +39,7 @@
 <script>
   let guiaActual = "";
 
-  // ===== ESCÁNER (FUNCIONAL) =====
+  // ===== ESCÁNER =====
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
@@ -55,15 +55,13 @@
             "Guía escaneada: " + texto;
         }
       );
-    } else {
-      alert("No se encontraron cámaras");
     }
   }).catch(err => {
     alert("Error al acceder a la cámara");
     console.error(err);
   });
 
-  // ===== BOTÓN ENTREGADO / REINTENTO =====
+  // ===== GUARDAR ESTADO =====
   async function marcar(estado) {
     if (!guiaActual) {
       mostrarMensaje("⚠️ Primero escanea una guía", "warn");
@@ -82,8 +80,11 @@
       .insert([{ guia: guiaActual, estado: estado }]);
 
     if (error) {
-      console.error(error);
-      mostrarMensaje("❌ Error al guardar", "error");
+      if (error.code === "23505") {
+        mostrarMensaje("⚠️ Esta guía ya fue registrada", "warn");
+      } else {
+        mostrarMensaje("❌ Error al guardar", "error");
+      }
     } else {
       if (estado === "ENTREGADO") {
         mostrarMensaje("✅ Pedido entregado correctamente", "ok");
@@ -110,7 +111,7 @@
     });
   }
 
-  // ===== MENSAJES BONITOS =====
+  // ===== MENSAJES =====
   function mostrarMensaje(texto, tipo) {
     const msg = document.getElementById("mensaje");
     msg.innerText = texto;
