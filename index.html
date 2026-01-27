@@ -2,11 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>HEIGASER - Escáner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HEIGASER - Escáner</title>
 
-  <!-- Librería escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
@@ -18,52 +18,55 @@
 
   <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
 
-  <button onclick="marcar('ENTREGADO')"
-    style="padding:15px; margin:10px; width:90%; font-size:18px;">
+  <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
     ✅ ENTREGADO
   </button>
 
-  <button onclick="marcar('REINTENTO')"
-    style="padding:15px; margin:10px; width:90%; font-size:18px;">
+  <button onclick="marcar('REINTENTO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
     🔁 REINTENTO
   </button>
 
 <script>
+  // 🔐 CONEXIÓN SUPABASE
+  const supabaseUrl = "TU_URL_DE_SUPABASE";
+  const supabaseKey = "TU_ANON_KEY";
+  const supabase = supabasejs.createClient(supabaseUrl, supabaseKey);
+
   let guiaActual = "";
 
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
-    if (!cameras || cameras.length === 0) {
-      alert("No se encontraron cámaras");
-      return;
+    if (cameras.length) {
+      html5QrCode.start(
+        cameras[cameras.length - 1].id,
+        { fps: 10, qrbox: 250 },
+        text => {
+          guiaActual = text;
+          document.getElementById("guia").innerText = "Guía escaneada: " + text;
+        }
+      );
     }
-
-    // 👉 Cámara trasera (normalmente la última)
-    const camaraTrasera = cameras[cameras.length - 1].id;
-
-    html5QrCode.start(
-      camaraTrasera,
-      { fps: 10, qrbox: 250 },
-      (texto) => {
-        guiaActual = texto;
-        document.getElementById("guia").innerText =
-          "Guía escaneada: " + texto;
-      }
-    );
-
-  }).catch(err => {
-    alert("Error al acceder a la cámara");
-    console.error(err);
   });
 
-  function marcar(estado) {
+  async function marcar(estado) {
     if (!guiaActual) {
       alert("Primero escanea una guía");
       return;
     }
 
-    alert("Guía " + guiaActual + " marcada como " + estado);
+    const { error } = await supabase
+      .from("entregas")
+      .insert([{ guia: guiaActual, estado: estado }]);
+
+    if (error) {
+      alert("Error al guardar");
+      console.error(error);
+    } else {
+      alert("Guía " + guiaActual + " marcada como " + estado);
+      guiaActual = "";
+      document.getElementById("guia").innerText = "";
+    }
   }
 </script>
 
