@@ -5,22 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HEIGASER - Escáner</title>
 
-  <!-- Librería del escáner -->
+  <!-- Librería escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
 
-  <h1 style="margin-bottom:5px;">HEIGASER</h1>
+  <h1>HEIGASER</h1>
   <h2>Escanear Guía</h2>
 
   <div id="reader" style="width:100%; max-width:400px; margin:auto;"></div>
 
-  <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
-  <p id="nombre" style="font-size:16px;"></p>
-  <p id="recaudo" style="font-size:16px;"></p>
+  <p id="guia" style="font-size:18px; font-weight:bold;"></p>
+  <p id="datos" style="font-size:16px;"></p>
 
-  <!-- MENSAJE -->
   <div id="mensaje" style="
     display:none;
     margin-top:15px;
@@ -30,144 +28,117 @@
     font-weight:bold;
   "></div>
 
-  <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
+  <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%;">
     ✅ ENTREGADO
   </button>
 
-  <button onclick="marcar('REINTENTO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
+  <button onclick="marcar('REINTENTO')" style="padding:15px; margin:10px; width:90%;">
     🔁 REINTENTO
   </button>
 
 <script>
   let guiaActual = "";
-  let estadoActual = "";
+  let datosGuia = null;
 
-  // ===== SUPABASE =====
-  function getSupabase() {
-    return window.supabase.createClient(
-      "https://dqjnarpnszgmsvmbebzk.supabase.co",
-      "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
-    );
-  }
-
-  // ===== ESCÁNER =====
+  // ESCÁNER
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
     const camaraTrasera = cameras[cameras.length - 1].id;
-
     html5QrCode.start(
       camaraTrasera,
       { fps: 10, qrbox: 250 },
-      async texto => {
-        guiaActual = texto;
-        document.getElementById("guia").innerText = "Guía: " + texto;
-
-        await cargarSupabase();
-        const supabase = getSupabase();
-
-        const { data, error } = await supabase
-          .from("entregas")
-          .select("nombre, recaudo, estado")
-          .eq("guia", texto)
-          .single();
-
-        if (error || !data) {
-          mostrarMensaje("❌ Guía no encontrada en la base", "warn");
-          limpiarDatos();
-          return;
-        }
-
-        estadoActual = data.estado;
-
-        document.getElementById("nombre").innerText =
-          "Cliente: " + data.nombre;
-
-        document.getElementById("recaudo").innerText =
-          "Recaudo: $" + Number(data.recaudo).toLocaleString("es-CO");
-
-        if (estadoActual === "ENTREGADO") {
-          mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
-        }
-      }
+      texto => buscarGuia(texto)
     );
   });
 
-  // ===== MARCAR ESTADO =====
-  async function marcar(nuevoEstado) {
-    if (!guiaActual) {
-      mostrarMensaje("⚠️ Primero escanea una guía", "warn");
+  async function buscarGuia(guia) {
+    await cargarSupabase();
+
+    const supabase = window.supabase.createClient(
+      "https://dqjnarpnszgmsvmbebzk.supabase.co",
+      "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
+    );
+
+    const { data, error } = await supabase
+      .from("entregas")
+      .select("*")
+      .eq("guia", guia)
+      .single();
+
+    if (error || !data) {
+      mostrarMensaje("❌ Guía no encontrada en la base de datos", "warn");
       return;
     }
 
-    if (estadoActual === "ENTREGADO") {
+    guiaActual = guia;
+    datosGuia = data;
+
+    document.getElementById("guia").innerText =
+      "Guía: " + data.guia;
+
+    document.getElementById("datos").innerText =
+      "Cliente: " + data.nombre + " | Recaudo: $" + data.recaudo.toLocaleString();
+  }
+
+  async function marcar(estado) {
+    if (!guiaActual || !datosGuia) {
+      mostrarMensaje("⚠️ Escanea una guía válida", "warn");
+      return;
+    }
+
+    if (datosGuia.estado === "ENTREGADO") {
       mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
       return;
     }
 
     await cargarSupabase();
-    const supabase = getSupabase();
+
+    const supabase = window.supabase.createClient(
+      "https://dqjnarpnszgmsvmbebzk.supabase.co",
+      "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
+    );
 
     const { error } = await supabase
       .from("entregas")
-      .update({ estado: nuevoEstado })
+      .update({ estado })
       .eq("guia", guiaActual);
 
     if (error) {
-      mostrarMensaje("❌ Error al actualizar", "error");
+      mostrarMensaje("❌ Error al actualizar", "warn");
       return;
     }
 
     mostrarMensaje(
-      nuevoEstado === "ENTREGADO"
+      estado === "ENTREGADO"
         ? "✅ Pedido entregado correctamente"
         : "🔁 Pedido marcado como reintento",
       "ok"
     );
 
-    limpiarDatos();
-  }
-
-  // ===== UTILIDADES =====
-  function limpiarDatos() {
     guiaActual = "";
-    estadoActual = "";
+    datosGuia = null;
     document.getElementById("guia").innerText = "";
-    document.getElementById("nombre").innerText = "";
-    document.getElementById("recaudo").innerText = "";
+    document.getElementById("datos").innerText = "";
   }
 
   function cargarSupabase() {
     return new Promise(resolve => {
-      if (window.supabase) {
-        resolve();
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-      script.onload = resolve;
-      document.body.appendChild(script);
+      if (window.supabase) return resolve();
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      s.onload = resolve;
+      document.body.appendChild(s);
     });
   }
 
   function mostrarMensaje(texto, tipo) {
-    const msg = document.getElementById("mensaje");
-    msg.innerText = texto;
-    msg.style.display = "block";
-
-    if (tipo === "ok") {
-      msg.style.background = "#e6f9ee";
-      msg.style.color = "#1b7a4a";
-      msg.style.border = "2px solid #1b7a4a";
-    } else {
-      msg.style.background = "#fff3cd";
-      msg.style.color = "#856404";
-      msg.style.border = "2px solid #856404";
-    }
-
-    setTimeout(() => {
-      msg.style.display = "none";
-    }, 3000);
+    const m = document.getElementById("mensaje");
+    m.innerText = texto;
+    m.style.display = "block";
+    m.style.background = tipo === "ok" ? "#e6f9ee" : "#fff3cd";
+    m.style.border = "2px solid";
+    setTimeout(() => m.style.display = "none", 3000);
   }
 </script>
 
