@@ -70,14 +70,28 @@
       .from("entregas")
       .insert([{ guia: guiaActual, estado: estado }]);
 
-    if (error) {
-      alert("Error al guardar");
-      console.error(error);
-    } else {
-      alert("Guía " + guiaActual + " marcada como " + estado);
-      guiaActual = "";
-      document.getElementById("guia").innerText = "";
-    }
+   if (error) {
+  mostrarMensaje("❌ Error al guardar", "error");
+} else {
+  if (estado === "ENTREGADO") {
+    mostrarMensaje("✅ Pedido entregado correctamente", "ok");
+  } else {
+    mostrarMensaje("🔁 Pedido marcado como reintento", "warn");
+  }
+
+  guiaActual = "";
+  document.getElementById("guia").innerText = "";
+}
+
+  <div id="mensaje" style="
+  display:none;
+  margin-top:15px;
+  padding:15px;
+  border-radius:10px;
+  font-size:18px;
+  font-weight:bold;
+"></div>
+
   }
 
   function cargarSupabase() {
@@ -92,8 +106,29 @@
       document.body.appendChild(script);
     });
   }
+    function mostrarMensaje(texto, tipo) {
+  const msg = document.getElementById("mensaje");
+  msg.innerText = texto;
+  msg.style.display = "block";
+
+  if (tipo === "ok") {
+    msg.style.background = "#e6f9ee";
+    msg.style.color = "#1b7a4a";
+    msg.style.border = "2px solid #1b7a4a";
+  } else {
+    msg.style.background = "#fff3cd";
+    msg.style.color = "#856404";
+    msg.style.border = "2px solid #856404";
+  }
+
+  setTimeout(() => {
+    msg.style.display = "none";
+  }, 3000);
+}
+
 </script>
 
 </body>
 </html>
+
 
