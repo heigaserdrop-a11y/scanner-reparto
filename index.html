@@ -2,86 +2,68 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>HEIGASER - Escanear Guía</title>
+  <title>HEIGASER - Escáner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Librería escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
 
-  <h1>HEIGASER</h1>
+  <h1 style="margin-bottom:5px;">HEIGASER</h1>
   <h2>Escanear Guía</h2>
 
-  <button onclick="iniciarEscaner()"
-    style="padding:15px; width:90%; font-size:18px;">
-    📷 INICIAR ESCÁNER
-  </button>
+  <div id="reader" style="width:100%; max-width:400px; margin:auto;"></div>
 
-  <div id="reader"
-       style="width:100%; max-width:400px; height:300px; margin:auto; display:none;">
-  </div>
+  <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
 
-  <p id="guia" style="font-size:18px; font-weight:bold;"></p>
-
-  <button onclick="marcar('ENTREGADO')" style="padding:15px; width:90%;">
+  <button onclick="marcar('ENTREGADO')"
+    style="padding:15px; margin:10px; width:90%; font-size:18px;">
     ✅ ENTREGADO
   </button>
 
-  <button onclick="marcar('REINTENTO')" style="padding:15px; width:90%;">
+  <button onclick="marcar('REINTENTO')"
+    style="padding:15px; margin:10px; width:90%; font-size:18px;">
     🔁 REINTENTO
   </button>
 
 <script>
-  const supabase = window.supabase.createClient(
-    "TU_SUPABASE_URL",
-    "TU_SUPABASE_ANON_KEY"
-  );
-
   let guiaActual = "";
-  let qr;
 
-  async function iniciarEscaner() {
-    try {
-      // 🔥 ESTO DISPARA EL POPUP DE PERMISOS EN ANDROID
-      await navigator.mediaDevices.getUserMedia({ video: true });
+  const html5QrCode = new Html5Qrcode("reader");
 
-      document.getElementById("reader").style.display = "block";
-
-      const cameras = await Html5Qrcode.getCameras();
-      const camaraTrasera = cameras[cameras.length - 1].id;
-
-      qr = new Html5Qrcode("reader");
-
-      await qr.start(
-        camaraTrasera,
-        { fps: 10, qrbox: 250 },
-        (texto) => {
-          guiaActual = texto;
-          document.getElementById("guia").innerText =
-            "Guía escaneada: " + texto;
-        }
-      );
-
-    } catch (e) {
-      alert("Debes permitir el acceso a la cámara");
-      console.error(e);
+  Html5Qrcode.getCameras().then(cameras => {
+    if (!cameras || cameras.length === 0) {
+      alert("No se encontraron cámaras");
+      return;
     }
-  }
 
-  async function marcar(estado) {
+    // 👉 Cámara trasera (normalmente la última)
+    const camaraTrasera = cameras[cameras.length - 1].id;
+
+    html5QrCode.start(
+      camaraTrasera,
+      { fps: 10, qrbox: 250 },
+      (texto) => {
+        guiaActual = texto;
+        document.getElementById("guia").innerText =
+          "Guía escaneada: " + texto;
+      }
+    );
+
+  }).catch(err => {
+    alert("Error al acceder a la cámara");
+    console.error(err);
+  });
+
+  function marcar(estado) {
     if (!guiaActual) {
       alert("Primero escanea una guía");
       return;
     }
 
-    const { error } = await supabase
-      .from("entregas")
-      .insert([{ guia: guiaActual, estado }]);
-
-    if (error) alert("Error al guardar");
-    else alert("Guardado correctamente");
+    alert("Guía " + guiaActual + " marcada como " + estado);
   }
 </script>
 
