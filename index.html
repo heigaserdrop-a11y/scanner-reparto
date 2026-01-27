@@ -32,7 +32,7 @@ function onScanSuccess(text) {
 
 new Html5QrcodeScanner(
   "reader",
-  { fps: 10, qrbox: 250 }
+  { fps: 10, qrbox: 250, facingMode: "environment" }
 ).render(onScanSuccess);
 
 function marcar(estado) {
@@ -46,3 +46,4 @@ function marcar(estado) {
 
 </body>
 </html>
+
