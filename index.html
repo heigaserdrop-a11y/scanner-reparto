@@ -5,11 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HEIGASER - Escáner</title>
 
-  <!-- Escáner -->
+  <!-- Escáner (NO TOCAR) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
-
-  <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
@@ -30,43 +27,44 @@
   </button>
 
 <script>
-  // 🔐 SUPABASE (CAMBIA SOLO ESTO)
-  const SUPABASE_URL = "TU_URL_DE_SUPABASE";
-  const SUPABASE_KEY = "TU_ANON_KEY";
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
   let guiaActual = "";
+
+  // 🔥 ESCÁNER (IGUAL AL QUE FUNCIONABA)
   const html5QrCode = new Html5Qrcode("reader");
 
-  // 🔥 INICIAR CÁMARA TRASERA
   Html5Qrcode.getCameras().then(cameras => {
-    if (!cameras || cameras.length === 0) {
-      alert("No se detectaron cámaras");
-      return;
+    if (cameras && cameras.length > 0) {
+      const camaraTrasera = cameras[cameras.length - 1].id;
+
+      html5QrCode.start(
+        camaraTrasera,
+        { fps: 10, qrbox: 250 },
+        texto => {
+          guiaActual = texto;
+          document.getElementById("guia").innerText =
+            "Guía escaneada: " + texto;
+        }
+      );
     }
-
-    const camaraTrasera = cameras[cameras.length - 1].id;
-
-    html5QrCode.start(
-      camaraTrasera,
-      { fps: 10, qrbox: 250 },
-      texto => {
-        guiaActual = texto;
-        document.getElementById("guia").innerText =
-          "Guía escaneada: " + texto;
-      }
-    );
-
   }).catch(err => {
     alert("Error al acceder a la cámara");
     console.error(err);
   });
 
+  // 🧠 CARGAR SUPABASE SOLO CUANDO SE NECESITA
   async function marcar(estado) {
     if (!guiaActual) {
       alert("Primero escanea una guía");
       return;
     }
+
+    // Cargar Supabase dinámicamente
+    await cargarSupabase();
+
+    const supabase = window.supabase.createClient(
+      "TU_URL_DE_SUPABASE",
+      "TU_ANON_KEY"
+    );
 
     const { error } = await supabase
       .from("entregas")
@@ -80,6 +78,19 @@
       guiaActual = "";
       document.getElementById("guia").innerText = "";
     }
+  }
+
+  function cargarSupabase() {
+    return new Promise(resolve => {
+      if (window.supabase) {
+        resolve();
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      script.onload = resolve;
+      document.body.appendChild(script);
+    });
   }
 </script>
 
