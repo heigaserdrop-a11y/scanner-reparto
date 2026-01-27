@@ -5,7 +5,7 @@
   <title>HEIGASER - Escanear Guía</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Librería escáner -->
+  <!-- Escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <!-- Supabase -->
@@ -17,12 +17,15 @@
   <h1 style="margin-bottom:5px;">HEIGASER</h1>
   <h2 style="margin-top:0;">Escanear Guía</h2>
 
-  <button onclick="iniciarEscaner()"
+  <button id="btnEscaner"
+    onclick="iniciarEscaner()"
     style="padding:15px; margin:15px; width:90%; font-size:18px;">
     📷 INICIAR ESCÁNER
   </button>
 
-  <div id="reader" style="width:100%; max-width:400px; height:300px; margin:auto;"></div>
+  <div id="reader"
+       style="width:100%; max-width:400px; height:300px; margin:auto; display:none;">
+  </div>
 
   <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
 
@@ -37,41 +40,49 @@
   </button>
 
   <script>
-    // 🔑 SUPABASE (PEGA LOS TUYOS)
+    // 🔑 SUPABASE
     const supabaseUrl = "TU_SUPABASE_URL";
     const supabaseKey = "TU_SUPABASE_ANON_KEY";
     const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     let guiaActual = "";
-    let html5QrCode;
+    let qrCode = null;
 
-    // 📷 INICIAR ESCÁNER (OBLIGATORIO CON BOTÓN)
-    function iniciarEscaner() {
-      html5QrCode = new Html5Qrcode("reader");
+    // 📷 INICIAR ESCÁNER (FORMA CORRECTA)
+    async function iniciarEscaner() {
+      document.getElementById("reader").style.display = "block";
+      document.getElementById("btnEscaner").style.display = "none";
 
-      Html5Qrcode.getCameras().then(cameras => {
-        if (cameras && cameras.length > 0) {
-          const camaraTrasera = cameras[cameras.length - 1].id;
+      try {
+        const cameras = await Html5Qrcode.getCameras();
 
-          html5QrCode.start(
-            camaraTrasera,
-            { fps: 10, qrbox: 250 },
-            (texto) => {
-              guiaActual = texto;
-              document.getElementById("guia").innerText =
-                "Guía escaneada: " + texto;
-            }
-          );
-        } else {
+        if (!cameras || cameras.length === 0) {
           alert("No se encontraron cámaras");
+          return;
         }
-      }).catch(err => {
-        alert("Error al acceder a la cámara");
+
+        // Cámara trasera (normalmente la última)
+        const camaraTrasera = cameras[cameras.length - 1].id;
+
+        qrCode = new Html5Qrcode("reader");
+
+        await qrCode.start(
+          camaraTrasera,
+          { fps: 10, qrbox: 250 },
+          (texto) => {
+            guiaActual = texto;
+            document.getElementById("guia").innerText =
+              "Guía escaneada: " + texto;
+          }
+        );
+
+      } catch (err) {
+        alert("Error al abrir la cámara");
         console.error(err);
-      });
+      }
     }
 
-    // 💾 GUARDAR ESTADO
+    // 💾 GUARDAR EN SUPABASE
     async function marcar(estado) {
       if (!guiaActual) {
         alert("Primero escanea una guía");
@@ -80,7 +91,7 @@
 
       const { error } = await supabase
         .from("entregas")
-        .insert([{ guia: guiaActual, estado: estado }]);
+        .insert([{ guia: guiaActual, estado }]);
 
       if (error) {
         alert("Error al guardar");
