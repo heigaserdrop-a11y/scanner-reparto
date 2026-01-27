@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HEIGASER - Escáner</title>
 
-  <!-- Escáner (NO TOCAR) -->
+  <!-- Librería del escáner -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
@@ -18,6 +18,16 @@
 
   <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
 
+  <!-- MENSAJE BONITO -->
+  <div id="mensaje" style="
+    display:none;
+    margin-top:15px;
+    padding:15px;
+    border-radius:10px;
+    font-size:18px;
+    font-weight:bold;
+  "></div>
+
   <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
     ✅ ENTREGADO
   </button>
@@ -29,7 +39,7 @@
 <script>
   let guiaActual = "";
 
-  // 🔥 ESCÁNER (IGUAL AL QUE FUNCIONABA)
+  // ===== ESCÁNER (FUNCIONAL) =====
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
@@ -45,20 +55,21 @@
             "Guía escaneada: " + texto;
         }
       );
+    } else {
+      alert("No se encontraron cámaras");
     }
   }).catch(err => {
     alert("Error al acceder a la cámara");
     console.error(err);
   });
 
-  // 🧠 CARGAR SUPABASE SOLO CUANDO SE NECESITA
+  // ===== BOTÓN ENTREGADO / REINTENTO =====
   async function marcar(estado) {
     if (!guiaActual) {
-      alert("Primero escanea una guía");
+      mostrarMensaje("⚠️ Primero escanea una guía", "warn");
       return;
     }
 
-    // Cargar Supabase dinámicamente
     await cargarSupabase();
 
     const supabase = window.supabase.createClient(
@@ -70,29 +81,22 @@
       .from("entregas")
       .insert([{ guia: guiaActual, estado: estado }]);
 
-   if (error) {
-  mostrarMensaje("❌ Error al guardar", "error");
-} else {
-  if (estado === "ENTREGADO") {
-    mostrarMensaje("✅ Pedido entregado correctamente", "ok");
-  } else {
-    mostrarMensaje("🔁 Pedido marcado como reintento", "warn");
+    if (error) {
+      console.error(error);
+      mostrarMensaje("❌ Error al guardar", "error");
+    } else {
+      if (estado === "ENTREGADO") {
+        mostrarMensaje("✅ Pedido entregado correctamente", "ok");
+      } else {
+        mostrarMensaje("🔁 Pedido marcado como reintento", "warn");
+      }
+
+      guiaActual = "";
+      document.getElementById("guia").innerText = "";
+    }
   }
 
-  guiaActual = "";
-  document.getElementById("guia").innerText = "";
-}
-  <div id="mensaje" style="
-  display:none;
-  margin-top:15px;
-  padding:15px;
-  border-radius:10px;
-  font-size:18px;
-  font-weight:bold;
-"></div>
-
-  }
-
+  // ===== CARGAR SUPABASE =====
   function cargarSupabase() {
     return new Promise(resolve => {
       if (window.supabase) {
@@ -105,29 +109,28 @@
       document.body.appendChild(script);
     });
   }
-    function mostrarMensaje(texto, tipo) {
-  const msg = document.getElementById("mensaje");
-  msg.innerText = texto;
-  msg.style.display = "block";
 
-  if (tipo === "ok") {
-    msg.style.background = "#e6f9ee";
-    msg.style.color = "#1b7a4a";
-    msg.style.border = "2px solid #1b7a4a";
-  } else {
-    msg.style.background = "#fff3cd";
-    msg.style.color = "#856404";
-    msg.style.border = "2px solid #856404";
+  // ===== MENSAJES BONITOS =====
+  function mostrarMensaje(texto, tipo) {
+    const msg = document.getElementById("mensaje");
+    msg.innerText = texto;
+    msg.style.display = "block";
+
+    if (tipo === "ok") {
+      msg.style.background = "#e6f9ee";
+      msg.style.color = "#1b7a4a";
+      msg.style.border = "2px solid #1b7a4a";
+    } else {
+      msg.style.background = "#fff3cd";
+      msg.style.color = "#856404";
+      msg.style.border = "2px solid #856404";
+    }
+
+    setTimeout(() => {
+      msg.style.display = "none";
+    }, 3000);
   }
-
-  setTimeout(() => {
-    msg.style.display = "none";
-  }, 3000);
-}
 </script>
 
 </body>
 </html>
-
-
-
