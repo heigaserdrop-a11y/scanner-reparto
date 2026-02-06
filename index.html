@@ -11,14 +11,13 @@
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
 
-  <h1 style="margin-bottom:5px;">HEIGASER</h1>
+  <h1>HEIGASER</h1>
   <h2>Escanear Guía</h2>
 
   <div id="reader" style="width:100%; max-width:400px; margin:auto;"></div>
 
-  <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
+  <p id="guia" style="font-size:18px; font-weight:bold;"></p>
 
-  <!-- MENSAJE -->
   <div id="mensaje" style="
     display:none;
     margin-top:15px;
@@ -39,31 +38,27 @@
 <script>
   let guiaActual = "";
 
+  // 🔗 PEGA AQUÍ TU LINK DE GOOGLE APPS SCRIPT
+  const URL_SCRIPT = "PEGA_AQUI_TU_LINK";
+
   // ===== ESCÁNER =====
   const html5QrCode = new Html5Qrcode("reader");
 
   Html5Qrcode.getCameras().then(cameras => {
-    if (cameras && cameras.length > 0) {
-      const camaraTrasera = cameras[cameras.length - 1].id;
+    const camaraTrasera = cameras[cameras.length - 1].id;
 
-      html5QrCode.start(
-        camaraTrasera,
-        { fps: 10, qrbox: 250 },
-        texto => {
-          guiaActual = texto;
-          document.getElementById("guia").innerText =
-            "Guía escaneada: " + texto;
-        }
-      );
-    } else {
-      alert("No se encontraron cámaras");
-    }
-  }).catch(err => {
-    alert("Error al acceder a la cámara");
-    console.error(err);
+    html5QrCode.start(
+      camaraTrasera,
+      { fps: 10, qrbox: 250 },
+      texto => {
+        guiaActual = texto;
+        document.getElementById("guia").innerText =
+          "Guía escaneada: " + texto;
+      }
+    );
   });
 
-  // ===== GUARDAR EN GOOGLE SHEETS =====
+  // ===== ENVIAR A GOOGLE SHEETS =====
   async function marcar(estado) {
     if (!guiaActual) {
       mostrarMensaje("⚠️ Primero escanea una guía", "warn");
@@ -71,37 +66,26 @@
     }
 
     try {
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbxXCMsKxVAzuks_KLMGMd9puZOWaOCwQ_xFh4nH_c-7tMPvffLB_OIh5IZnttKHuXplHw/exec",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            guia: guiaActual,
-            estado: estado
-          })
-        }
+      await fetch(URL_SCRIPT, {
+        method: "POST",
+        body: JSON.stringify({
+          guia: guiaActual,
+          estado: estado
+        })
+      });
+
+      mostrarMensaje(
+        estado === "ENTREGADO"
+          ? "✅ Pedido entregado correctamente"
+          : "🔁 Pedido marcado como reintento",
+        "ok"
       );
 
-      const result = await response.json();
+      guiaActual = "";
+      document.getElementById("guia").innerText = "";
 
-      if (result.status === "ok") {
-        mostrarMensaje(
-          estado === "ENTREGADO"
-            ? "✅ Pedido entregado correctamente"
-            : "🔁 Pedido marcado como reintento",
-          "ok"
-        );
-
-        guiaActual = "";
-        document.getElementById("guia").innerText = "";
-      } else {
-        mostrarMensaje("❌ Error al guardar", "warn");
-      }
-
-    } catch (error) {
+    } catch (e) {
       mostrarMensaje("❌ Error de conexión", "warn");
-      console.error(error);
     }
   }
 
