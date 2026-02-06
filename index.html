@@ -18,7 +18,7 @@
   <div style="position:relative; max-width:400px; margin:auto;">
     <div id="reader" style="width:100%;"></div>
 
-    <!-- OVERLAY PROCESANDO -->
+    <!-- OVERLAY -->
     <div id="overlay" style="
       display:none;
       position:absolute;
@@ -26,30 +26,22 @@
       left:0;
       width:100%;
       height:100%;
-      background:rgba(0,0,0,0.75);
+      background:rgba(0,0,0,0.85);
       color:white;
-      font-size:24px;
+      font-size:26px;
       font-weight:bold;
       border-radius:10px;
       align-items:center;
       justify-content:center;
       z-index:10;
+      text-align:center;
+      padding:20px;
     ">
       ⏳ PROCESANDO...
     </div>
   </div>
 
   <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
-
-  <!-- MENSAJE FINAL -->
-  <div id="mensaje" style="
-    display:none;
-    margin-top:15px;
-    padding:15px;
-    border-radius:10px;
-    font-size:18px;
-    font-weight:bold;
-  "></div>
 
   <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
     ✅ ENTREGADO
@@ -86,12 +78,16 @@
   // ===== BOTONES =====
   async function marcar(estado) {
     if (!guiaActual) {
-      mostrarMensaje("⚠️ Primero escanea una guía", "warn");
+      mostrarResultado("⚠️ PRIMERO ESCANEA UNA GUÍA", "warn");
       sonar("warn");
       return;
     }
 
-    mostrarOverlay();
+    // 🔊 SONIDO SE DISPARA INMEDIATO (CLAVE)
+    if (estado === "ENTREGADO") sonar("ok");
+    if (estado === "REINTENTO") sonar("warn");
+
+    mostrarOverlay("⏳ PROCESANDO...");
 
     try {
       const response = await fetch(
@@ -104,23 +100,21 @@
       );
 
       const text = await response.text();
-      ocultarOverlay();
 
       if (text === "DUPLICADO") {
-        mostrarMensaje("🚫 Esta guía ya fue registrada", "warn");
+        mostrarResultado("🚫 GUÍA YA REGISTRADA", "warn");
         sonar("warn");
       } 
       else if (text === "GUARDADO") {
-        mostrarMensaje(
+        mostrarResultado(
           estado === "ENTREGADO"
-            ? "✅ Pedido entregado correctamente"
-            : "🔁 Pedido marcado como reintento",
+            ? "✅ PEDIDO ENTREGADO"
+            : "🔁 MARCADO COMO REINTENTO",
           "ok"
         );
-        sonar("ok");
       } 
       else {
-        mostrarMensaje("❌ Error al guardar", "warn");
+        mostrarResultado("❌ ERROR AL GUARDAR", "error");
         sonar("error");
       }
 
@@ -128,44 +122,35 @@
       document.getElementById("guia").innerText = "";
 
     } catch (e) {
-      ocultarOverlay();
-      mostrarMensaje("❌ Error de conexión", "warn");
+      mostrarResultado("❌ ERROR DE CONEXIÓN", "error");
       sonar("error");
     }
   }
 
   // ===== OVERLAY =====
-  function mostrarOverlay() {
+  function mostrarOverlay(texto) {
     const o = document.getElementById("overlay");
+    o.innerText = texto;
+    o.style.background = "rgba(0,0,0,0.85)";
     o.style.display = "flex";
   }
 
-  function ocultarOverlay() {
-    document.getElementById("overlay").style.display = "none";
-  }
+  function mostrarResultado(texto, tipo) {
+    const o = document.getElementById("overlay");
+    o.innerText = texto;
 
-  // ===== MENSAJES =====
-  function mostrarMensaje(texto, tipo) {
-    const msg = document.getElementById("mensaje");
-    msg.innerText = texto;
-    msg.style.display = "block";
+    if (tipo === "ok") o.style.background = "rgba(0,120,60,0.85)";
+    else if (tipo === "warn") o.style.background = "rgba(180,120,0,0.85)";
+    else o.style.background = "rgba(160,0,0,0.85)";
 
-    if (tipo === "ok") {
-      msg.style.background = "#e6f9ee";
-      msg.style.color = "#1b7a4a";
-      msg.style.border = "2px solid #1b7a4a";
-    } else {
-      msg.style.background = "#fff3cd";
-      msg.style.color = "#856404";
-      msg.style.border = "2px solid #856404";
-    }
+    o.style.display = "flex";
 
     setTimeout(() => {
-      msg.style.display = "none";
-    }, 3000);
+      o.style.display = "none";
+    }, 2000);
   }
 
-  // ===== SONIDOS (FORZADOS) =====
+  // ===== SONIDOS =====
   function sonar(tipo) {
     let audio;
     if (tipo === "ok") audio = document.getElementById("sonidoOk");
