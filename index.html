@@ -30,14 +30,13 @@
   }
 
   #overlay {
-    display: none;
+    display: none; /* 🔴 CLAVE: oculto al cargar */
     position: absolute;
     inset: 0;
     background: rgba(0,0,0,0.85);
     color: white;
     font-size: 22px;
     font-weight: bold;
-    display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
@@ -61,7 +60,7 @@
 
 <div id="scanner-box">
   <div id="reader"></div>
-  <div id="overlay">⏳ PROCESANDO...</div>
+  <div id="overlay"></div>
 </div>
 
 <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
@@ -90,6 +89,7 @@ Html5Qrcode.getCameras().then(cameras => {
   );
 });
 
+// ===== BOTONES =====
 async function marcar(estado) {
   if (!guiaActual) {
     mostrar("⚠️ ESCANEA UNA GUÍA", "warn");
@@ -110,12 +110,18 @@ async function marcar(estado) {
 
     const txt = await res.text();
 
-    if (txt === "DUPLICADO") mostrar("🚫 GUÍA YA REGISTRADA", "warn");
-    else if (txt === "GUARDADO") mostrar(
-      estado === "ENTREGADO" ? "✅ PEDIDO ENTREGADO" : "🔁 REINTENTO REGISTRADO",
-      "ok"
-    );
-    else mostrar("❌ ERROR", "error");
+    if (txt === "DUPLICADO") {
+      mostrar("🚫 GUÍA YA REGISTRADA", "warn");
+    } else if (txt === "GUARDADO") {
+      mostrar(
+        estado === "ENTREGADO"
+          ? "✅ PEDIDO ENTREGADO"
+          : "🔁 REINTENTO REGISTRADO",
+        "ok"
+      );
+    } else {
+      mostrar("❌ ERROR", "error");
+    }
 
     guiaActual = "";
     document.getElementById("guia").innerText = "";
@@ -125,6 +131,7 @@ async function marcar(estado) {
   }
 }
 
+// ===== OVERLAY + SONIDO =====
 function mostrar(texto, tipo) {
   const o = document.getElementById("overlay");
   o.innerText = texto;
