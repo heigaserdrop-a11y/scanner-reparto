@@ -16,7 +16,9 @@
 
   <!-- CONTENEDOR ESCÁNER -->
   <div style="position:relative; max-width:400px; margin:auto;">
-    <div id="reader" style="width:100%;"></div>
+
+    <!-- ESCÁNER (ALTURA FIJA) -->
+    <div id="reader" style="width:100%; height:300px;"></div>
 
     <!-- OVERLAY -->
     <div id="overlay" style="
@@ -25,7 +27,7 @@
       top:0;
       left:0;
       width:100%;
-      height:100%;
+      height:300px;
       background:rgba(0,0,0,0.85);
       color:white;
       font-size:26px;
@@ -39,6 +41,7 @@
     ">
       ⏳ PROCESANDO...
     </div>
+
   </div>
 
   <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
@@ -64,6 +67,7 @@
 
   Html5Qrcode.getCameras().then(cameras => {
     const camaraTrasera = cameras[cameras.length - 1].id;
+
     html5QrCode.start(
       camaraTrasera,
       { fps: 10, qrbox: 250 },
@@ -83,7 +87,7 @@
       return;
     }
 
-    // 🔊 SONIDO SE DISPARA INMEDIATO (CLAVE)
+    // 🔊 sonido inmediato
     if (estado === "ENTREGADO") sonar("ok");
     if (estado === "REINTENTO") sonar("warn");
 
@@ -131,7 +135,6 @@
   function mostrarOverlay(texto) {
     const o = document.getElementById("overlay");
     o.innerText = texto;
-    o.style.background = "rgba(0,0,0,0.85)";
     o.style.display = "flex";
   }
 
