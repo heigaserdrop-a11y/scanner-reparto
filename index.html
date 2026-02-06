@@ -63,86 +63,46 @@
     console.error(err);
   });
 
-  // ===== FUNCIÓN CON CONTROL REAL DE ESTADOS =====
+  // ===== GUARDAR EN GOOGLE SHEETS =====
   async function marcar(estado) {
     if (!guiaActual) {
       mostrarMensaje("⚠️ Primero escanea una guía", "warn");
       return;
     }
 
-    await cargarSupabase();
-
-    const supabase = window.supabase.createClient(
-      "https://dqjnarpnszgmsvmbebzk.supabase.co",
-      "sb_publishable_C-alQtgPteApYrtwzm9QiQ_xHLw9VxA"
-    );
-
-    // Buscar la guía
-    const { data, error: fetchError } = await supabase
-      .from("entregas")
-      .select("estado")
-      .eq("guia", guiaActual)
-      .single();
-
-    // Si NO existe → insertar
-    if (fetchError && fetchError.code === "PGRST116") {
-      const { error: insertError } = await supabase
-        .from("entregas")
-        .insert([{ guia: guiaActual, estado }]);
-
-      if (insertError) {
-        mostrarMensaje("❌ Error al guardar", "error");
-        return;
-      }
-
-      mostrarMensaje(
-        estado === "ENTREGADO"
-          ? "✅ Pedido entregado correctamente"
-          : "🔁 Pedido marcado como reintento",
-        "ok"
+    try {
+      const response = await fetch(
+        "https://script.google.com/macros/s/AKfycbxXCMsKxVAzuks_KLMGMd9puZOWaOCwQ_xFh4nH_c-7tMPvffLB_OIh5IZnttKHuXplHw/exec",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            guia: guiaActual,
+            estado: estado
+          })
+        }
       );
 
-    } else {
-      // Si ya existe
-      if (data.estado === "ENTREGADO") {
-        mostrarMensaje("🚫 Este pedido ya fue entregado", "warn");
-        return;
-      }
+      const result = await response.json();
 
-      if (data.estado === "REINTENTO" && estado === "ENTREGADO") {
-        const { error: updateError } = await supabase
-          .from("entregas")
-          .update({ estado: "ENTREGADO", updated_at: new Date() })
-          .eq("guia", guiaActual);
+      if (result.status === "ok") {
+        mostrarMensaje(
+          estado === "ENTREGADO"
+            ? "✅ Pedido entregado correctamente"
+            : "🔁 Pedido marcado como reintento",
+          "ok"
+        );
 
-        if (updateError) {
-          mostrarMensaje("❌ Error al actualizar", "error");
-          return;
-        }
-
-        mostrarMensaje("✅ Pedido entregado correctamente", "ok");
+        guiaActual = "";
+        document.getElementById("guia").innerText = "";
       } else {
-        mostrarMensaje("⚠️ Estado no permitido", "warn");
-        return;
+        mostrarMensaje("❌ Error al guardar", "warn");
       }
+
+    } catch (error) {
+      mostrarMensaje("❌ Error de conexión", "warn");
+      console.error(error);
     }
-
-    guiaActual = "";
-    document.getElementById("guia").innerText = "";
-  }
-
-  // ===== CARGAR SUPABASE =====
-  function cargarSupabase() {
-    return new Promise(resolve => {
-      if (window.supabase) {
-        resolve();
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-      script.onload = resolve;
-      document.body.appendChild(script);
-    });
   }
 
   // ===== MENSAJES =====
