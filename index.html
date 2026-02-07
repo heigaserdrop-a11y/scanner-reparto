@@ -29,7 +29,7 @@
   }
 
   #overlay {
-    display: none; /* 👈 CLAVE */
+    display: none;
     position: absolute;
     inset: 0;
     background: rgba(0,0,0,0.85);
@@ -107,17 +107,30 @@ async function marcar(estado) {
 
     const text = await r.text();
 
-    if (text === "GUARDADO" || text === "ACTUALIZADO") {
+    // 🔥 LÓGICA CORRECTA
+    if (text === "GUARDADO") {
+      if (estado === "REINTENTO") {
+        mostrar("🔁 PEDIDO MARCADO PARA REINTENTO", "warn");
+        sonar("warn");
+      } else {
+        mostrar("✅ PEDIDO ENTREGADO", "ok");
+        sonar("ok");
+      }
+    }
+    else if (text === "ACTUALIZADO") {
       mostrar("✅ PEDIDO ENTREGADO", "ok");
       sonar("ok");
-    } else if (text === "ENTREGADO") {
+    }
+    else if (text === "ENTREGADO") {
       mostrar("🚫 YA FUE ENTREGADO", "warn");
       sonar("warn");
-    } else if (text === "DUPLICADO") {
+    }
+    else if (text === "DUPLICADO") {
       mostrar("🚫 GUÍA YA REGISTRADA", "warn");
       sonar("warn");
-    } else {
-      mostrar("❌ ERROR", "error");
+    }
+    else {
+      mostrar("❌ ERROR DESCONOCIDO", "error");
       sonar("error");
     }
 
