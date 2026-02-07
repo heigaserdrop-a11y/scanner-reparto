@@ -30,7 +30,7 @@
   }
 
   #overlay {
-    display: none; /* 🔴 CLAVE: oculto al cargar */
+    display: none;
     position: absolute;
     inset: 0;
     background: rgba(0,0,0,0.85);
@@ -76,6 +76,7 @@
 <script>
 let guiaActual = "";
 
+// ===== ESCÁNER =====
 const scanner = new Html5Qrcode("reader");
 
 Html5Qrcode.getCameras().then(cameras => {
@@ -85,6 +86,9 @@ Html5Qrcode.getCameras().then(cameras => {
     text => {
       guiaActual = text;
       document.getElementById("guia").innerText = "Guía: " + text;
+
+      // 📳 vibración al escanear
+      vibrar([100]);
     }
   );
 });
@@ -112,15 +116,20 @@ async function marcar(estado) {
 
     if (txt === "DUPLICADO") {
       mostrar("🚫 GUÍA YA REGISTRADA", "warn");
-    } else if (txt === "GUARDADO") {
+      vibrar([200,100,200]);
+    } 
+    else if (txt === "GUARDADO") {
       mostrar(
         estado === "ENTREGADO"
           ? "✅ PEDIDO ENTREGADO"
           : "🔁 REINTENTO REGISTRADO",
         "ok"
       );
-    } else {
+      vibrar([300]);
+    } 
+    else {
       mostrar("❌ ERROR", "error");
+      vibrar([400,150,400]);
     }
 
     guiaActual = "";
@@ -128,6 +137,7 @@ async function marcar(estado) {
 
   } catch {
     mostrar("❌ ERROR DE CONEXIÓN", "error");
+    vibrar([400,150,400]);
   }
 }
 
@@ -143,6 +153,13 @@ function mostrar(texto, tipo) {
 
   if (tipo) {
     setTimeout(() => o.style.display = "none", 2000);
+  }
+}
+
+// ===== VIBRACIÓN =====
+function vibrar(patron) {
+  if (navigator.vibrate) {
+    navigator.vibrate(patron);
   }
 }
 </script>
