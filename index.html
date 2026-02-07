@@ -1,10 +1,50 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HEIGASER - Escáner</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HEIGASER - Escáner</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+  #scanner-box {
+    position: relative;
+    max-width: 400px;
+    height: 300px;
+    margin: auto;
+    overflow: hidden;
+    border-radius: 10px;
+  }
+
+  #reader {
+    width: 100%;
+    height: 300px;
+  }
+
+  #reader video {
+    width: 100% !important;
+    height: 300px !important;
+    object-fit: cover !important;
+  }
+
+  #overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    text-align: center;
+    padding: 20px;
+  }
+</style>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
@@ -12,27 +52,9 @@
 <h1>HEIGASER</h1>
 <h2>Escanear Guía</h2>
 
-<div style="position:relative; max-width:400px; margin:auto;">
-  <div id="reader" style="width:100%; height:300px;"></div>
-
-  <div id="overlay" style="
-    display:none;
-    position:absolute;
-    top:0;
-    left:0;
-    width:100%;
-    height:300px;
-    background:rgba(0,0,0,0.85);
-    color:white;
-    font-size:26px;
-    font-weight:bold;
-    border-radius:10px;
-    align-items:center;
-    justify-content:center;
-    z-index:10;
-    text-align:center;
-    padding:20px;
-  "></div>
+<div id="scanner-box">
+  <div id="reader"></div>
+  <div id="overlay"></div>
 </div>
 
 <p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
@@ -52,8 +74,8 @@
 <script>
 let guiaActual = "";
 
-// ESCÁNER
 const html5QrCode = new Html5Qrcode("reader");
+
 Html5Qrcode.getCameras().then(cameras => {
   html5QrCode.start(
     cameras[cameras.length - 1].id,
@@ -86,25 +108,17 @@ async function marcar(estado) {
 
     const text = await r.text();
 
-    // ✅ RESPUESTAS CORRECTAS
-    if (text === "GUARDADO") {
-      mostrar("✅ REGISTRADO CORRECTAMENTE", "ok");
-      sonar("ok");
-    }
-    else if (text === "ACTUALIZADO") {
+    if (text === "GUARDADO" || text === "ACTUALIZADO") {
       mostrar("✅ PEDIDO ENTREGADO", "ok");
       sonar("ok");
-    }
-    else if (text === "ENTREGADO") {
+    } else if (text === "ENTREGADO") {
       mostrar("🚫 YA FUE ENTREGADO", "warn");
       sonar("warn");
-    }
-    else if (text === "DUPLICADO") {
+    } else if (text === "DUPLICADO") {
       mostrar("🚫 GUÍA YA REGISTRADA", "warn");
       sonar("warn");
-    }
-    else {
-      mostrar("❌ ERROR DESCONOCIDO", "error");
+    } else {
+      mostrar("❌ ERROR", "error");
       sonar("error");
     }
 
