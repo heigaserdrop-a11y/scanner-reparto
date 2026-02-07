@@ -7,15 +7,15 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-.slide-btn {
-  position: relative;
-  width: 100%;
-  height: 52px;
-  border-radius: 30px;
-  margin: 12px 0;
-  overflow: hidden;
+.slide-btn{
+  position:relative;
+  width:100%;
+  height:52px;
+  border-radius:30px;
+  margin:12px 0;
+  overflow:hidden;
 }
-.slide-track {
+.slide-track{
   position:absolute;
   inset:0;
   display:flex;
@@ -23,7 +23,7 @@
   justify-content:center;
   font-weight:bold;
 }
-.slide-handle {
+.slide-handle{
   position:absolute;
   top:3px;
   left:3px;
@@ -36,10 +36,10 @@
   justify-content:center;
   font-size:22px;
   box-shadow:0 2px 6px rgba(0,0,0,.3);
-  transition:left .2s;
+  transition:left .15s;
 }
-.entregado { background:#2ecc71; color:#fff; }
-.reintento { background:#f39c12; color:#fff; }
+.entregado{background:#2ecc71;color:#fff;}
+.reintento{background:#f39c12;color:#fff;}
 </style>
 </head>
 
@@ -49,14 +49,25 @@
 
 <div style="max-width:360px;margin:auto;position:relative">
   <div id="reader" style="height:220px;border-radius:12px;overflow:hidden"></div>
-  <div id="overlay" style="display:none;position:absolute;inset:0;
-    background:rgba(0,0,0,.85);color:white;font-size:18px;
-    align-items:center;justify-content:center;border-radius:12px"></div>
+  <div id="overlay" style="
+    display:none;
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,.85);
+    color:white;
+    font-size:18px;
+    font-weight:bold;
+    align-items:center;
+    justify-content:center;
+    border-radius:12px;
+    text-align:center;
+    padding:12px;"></div>
 </div>
 
 <div id="info" style="margin-top:12px;font-weight:bold"></div>
 
-<input type="file" id="foto" accept="image/*" capture="environment" style="margin:10px 0;width:100%">
+<input type="file" id="foto" accept="image/*" capture="environment"
+       style="margin:10px 0;width:100%">
 
 <div class="slide-btn entregado" id="btnEntregado">
   <div class="slide-track">DESLIZA PARA ENTREGAR</div>
@@ -73,14 +84,30 @@ let guiaActual="";
 let imagenBase64="";
 const URL="https://script.google.com/macros/s/AKfycbxuxWqOPnUAvNX-sirgTP3gZ8F-Q_PkEQVcRs3Q9j2lzvOqCWyJ3rQ8u2da6avwKSxPzQ/exec";
 
-// FOTO
+/* ========= FOTO (COMPRESIÓN) ========= */
 foto.onchange=()=>{
+  const file=foto.files[0];
+  if(!file) return;
+
+  const img=new Image();
   const reader=new FileReader();
-  reader.onload=()=>imagenBase64=reader.result;
-  reader.readAsDataURL(foto.files[0]);
+
+  reader.onload=e=>{
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      const max=800;
+      const scale=Math.min(max/img.width,1);
+      canvas.width=img.width*scale;
+      canvas.height=img.height*scale;
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      imagenBase64=canvas.toDataURL("image/jpeg",0.7); // 🔥 CLAVE
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
 };
 
-// ESCÁNER
+/* ========= ESCÁNER ========= */
 const qr=new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(c=>{
   qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscar(t));
@@ -88,46 +115,69 @@ Html5Qrcode.getCameras().then(c=>{
 
 async function buscar(g){
   guiaActual=g;
-  mostrar("🔍 BUSCANDO...");
-  const r=await fetch(`${URL}?guia=${g}`);
-  const d=await r.json();
-  ocultar();
-  if(!d.encontrado){mensaje("❌ NO EXISTE");return;}
-  if(d.estado==="ENTREGADO"){mensaje("🚫 YA ENTREGADO");guiaActual="";return;}
-  info.innerHTML=`📦 ${g}<br>👤 ${d.nombre}<br>💰 $${Number(d.valor).toLocaleString()}`;
+  mostrar("🔍 BUSCANDO PEDIDO...");
+  try{
+    const r=await fetch(`${URL}?guia=${encodeURIComponent(g)}`);
+    const d=await r.json();
+    ocultar();
+
+    if(!d.encontrado){
+      mensaje("❌ GUÍA NO EXISTE"); guiaActual=""; return;
+    }
+    if(d.estado==="ENTREGADO"){
+      mensaje("🚫 ESTA GUÍA YA FUE ENTREGADA"); guiaActual=""; return;
+    }
+
+    info.innerHTML=`📦 ${g}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
+  }catch{
+    ocultar(); mensaje("❌ ERROR DE CONEXIÓN"); guiaActual="";
+  }
 }
 
+/* ========= ENVIAR ========= */
 async function enviar(estado){
-  if(!guiaActual){mensaje("⚠️ ESCANEA");return;}
-  if(estado==="ENTREGADO" && !imagenBase64){mensaje("📸 FOTO OBLIGATORIA");return;}
+  if(!guiaActual){mensaje("⚠️ ESCANEA UNA GUÍA");return;}
+  if(estado==="ENTREGADO" && !imagenBase64){
+    mensaje("📸 FOTO OBLIGATORIA"); return;
+  }
 
   mostrar("⏳ PROCESANDO...");
-  const r=await fetch(URL,{
-    method:"POST",
-    headers:{"Content-Type":"application/x-www-form-urlencoded"},
-    body:`guia=${guiaActual}&estado=${estado}&imagen=${encodeURIComponent(imagenBase64)}`
-  });
-  const t=await r.text();
-  ocultar();
+  try{
+    const r=await fetch(URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}&imagen=${encodeURIComponent(imagenBase64)}`
+    });
+    const t=await r.text();
+    ocultar();
 
-  if(t==="ENTREGADO") mensaje("🚫 YA ENTREGADO");
-  else if(t==="ACTUALIZADO") mensaje("✅ ENTREGADO");
-  else if(t==="REINTENTO") mensaje("🔁 REINTENTO");
-  else mensaje("❌ ERROR");
+    if(t==="ENTREGADO") mensaje("🚫 YA ENTREGADO");
+    else if(estado==="ENTREGADO") mensaje("✅ PEDIDO ENTREGADO");
+    else mensaje("🔁 MARCADO PARA REINTENTO");
 
-  guiaActual=""; imagenBase64=""; info.innerHTML=""; foto.value="";
+    guiaActual=""; imagenBase64=""; info.innerHTML=""; foto.value="";
+  }catch{
+    ocultar(); mensaje("❌ ERROR DE CONEXIÓN");
+  }
 }
 
+/* ========= SLIDE REAL ========= */
 function slider(el,estado){
   let startX;
   const h=el.querySelector(".slide-handle");
-  el.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
+  const max=el.offsetWidth-52;
+
+  el.addEventListener("touchstart",e=>{
+    startX=e.touches[0].clientX;
+  });
+
   el.addEventListener("touchmove",e=>{
     const dx=e.touches[0].clientX-startX;
-    h.style.left=Math.min(260,Math.max(3,dx))+"px";
+    h.style.left=Math.min(max,Math.max(3,dx))+"px";
   });
-  el.addEventListener("touchend",e=>{
-    if(h.offsetLeft>200) enviar(estado);
+
+  el.addEventListener("touchend",()=>{
+    if(h.offsetLeft>max*0.7) enviar(estado);
     h.style.left="3px";
   });
 }
@@ -135,9 +185,10 @@ function slider(el,estado){
 slider(btnEntregado,"ENTREGADO");
 slider(btnReintento,"REINTENTO");
 
+/* ========= UI ========= */
 function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
 function ocultar(){overlay.style.display="none";}
-function mensaje(t){mostrar(t);setTimeout(ocultar,1500);}
+function mensaje(t){mostrar(t);setTimeout(ocultar,1600);}
 </script>
 
 </body>
