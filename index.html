@@ -7,47 +7,62 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-.slide-btn {
-  position: relative;
-  width: 100%;
-  height: 52px;
-  border-radius: 30px;
-  background: #e0e0e0;
-  margin: 12px 0;
-  overflow: hidden;
-  touch-action: pan-y;
+body{
+  font-family:Arial;
+  text-align:center;
+  padding:15px;
 }
-.slide-handle {
-  position: absolute;
-  top: 3px;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: white;
-  box-shadow: 0 2px 6px rgba(0,0,0,.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  transition: left .25s;
+
+/* ===== SLIDE BUTTON ===== */
+.slide-btn{
+  position:relative;
+  width:100%;
+  height:54px;
+  border-radius:30px;
+  margin:12px 0;
+  overflow:hidden;
+  user-select:none;
 }
-.slide-label {
-  line-height: 52px;
-  font-weight: bold;
-  color: #444;
+
+.slide-track{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+  color:white;
 }
-.entregado { background:#2ecc71; color:white; }
-.reintento { background:#f39c12; color:white; }
+
+.slide-handle{
+  position:absolute;
+  top:4px;
+  width:46px;
+  height:46px;
+  border-radius:50%;
+  background:white;
+  box-shadow:0 2px 6px rgba(0,0,0,.35);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  z-index:2;
+  transition:left .25s ease;
+}
+
+.entregado{background:#2ecc71;}
+.reintento{background:#f39c12;}
 </style>
 </head>
 
-<body style="font-family:Arial;text-align:center;padding:15px">
+<body>
 
 <h1>HEIGASER</h1>
 <h3>Escanear Guía</h3>
 
 <div style="position:relative;max-width:360px;margin:auto">
   <div id="reader" style="width:100%;height:220px;border-radius:12px;overflow:hidden"></div>
+
   <div id="overlay" style="
     display:none;
     position:absolute;
@@ -61,21 +76,22 @@
     justify-content:center;
     z-index:5;
     text-align:center;
-    padding:15px;"></div>
+    padding:15px;">
+  </div>
 </div>
 
 <div id="info" style="margin-top:15px;font-size:16px;font-weight:bold"></div>
 
-<!-- SLIDE ENTREGADO -->
+<!-- ===== SLIDE ENTREGADO ===== -->
 <div class="slide-btn entregado" id="slideEntregado">
-  <div class="slide-handle" style="left:3px">✅</div>
-  <div class="slide-label">DESLIZA PARA ENTREGAR</div>
+  <div class="slide-track">DESLIZA PARA ENTREGAR</div>
+  <div class="slide-handle" style="left:4px">✅</div>
 </div>
 
-<!-- SLIDE REINTENTO -->
+<!-- ===== SLIDE REINTENTO ===== -->
 <div class="slide-btn reintento" id="slideReintento">
-  <div class="slide-handle" style="right:3px">🔁</div>
-  <div class="slide-label">DESLIZA PARA REINTENTO</div>
+  <div class="slide-track">DESLIZA PARA REINTENTO</div>
+  <div class="slide-handle" style="left:4px">🔁</div>
 </div>
 
 <audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
@@ -86,11 +102,13 @@
 let guiaActual="";
 const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
 
+/* ===== ESCÁNER ===== */
 const html5QrCode=new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(c=>{
   html5QrCode.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscarGuia(t));
 });
 
+/* ===== BUSCAR GUÍA ===== */
 async function buscarGuia(guia){
   guiaActual=guia;
   mostrar("🔍 BUSCANDO PEDIDO...");
@@ -98,26 +116,25 @@ async function buscarGuia(guia){
     const r=await fetch(`${URL}?guia=${encodeURIComponent(guia)}`);
     const d=await r.json();
     ocultar();
+
     if(!d.encontrado){
-      mostrarResultado("❌ GUÍA NO EXISTE","error");
-      sonar("error"); guiaActual=""; return;
+      mostrarResultado("❌ GUÍA NO EXISTE","error"); sonar("error"); guiaActual=""; return;
     }
     if(d.estado==="ENTREGADO"){
-      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
-      sonar("warn"); guiaActual=""; return;
+      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn"); guiaActual=""; return;
     }
+
     info.innerHTML=`📦 ${guia}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
     sonar("ok");
   }catch{
     ocultar();
-    mostrarResultado("❌ ERROR DE CONEXIÓN","error");
-    sonar("error");
-    guiaActual="";
+    mostrarResultado("❌ ERROR DE CONEXIÓN","error"); sonar("error"); guiaActual="";
   }
 }
 
+/* ===== MARCAR ===== */
 async function marcar(estado){
-  if(!guiaActual){mostrarResultado("⚠️ ESCANEA UNA GUÍA","warn");sonar("warn");return;}
+  if(!guiaActual){mostrarResultado("⚠️ ESCANEA UNA GUÍA","warn"); sonar("warn"); return;}
   mostrar("⏳ PROCESANDO...");
   try{
     const r=await fetch(URL,{
@@ -126,6 +143,7 @@ async function marcar(estado){
       body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
     });
     const t=await r.text(); ocultar();
+
     if(t==="ENTREGADO"){
       mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn");
     }else if(estado==="ENTREGADO"){
@@ -133,14 +151,16 @@ async function marcar(estado){
     }else{
       mostrarResultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn"); sonar("warn");
     }
+
     guiaActual=""; info.innerHTML="";
+    resetSliders();
   }catch{
     ocultar();
-    mostrarResultado("❌ ERROR DE CONEXIÓN","error");
-    sonar("error");
+    mostrarResultado("❌ ERROR DE CONEXIÓN","error"); sonar("error");
   }
 }
 
+/* ===== OVERLAY ===== */
 function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
 function ocultar(){overlay.style.display="none";}
 function mostrarResultado(t,tipo){
@@ -151,21 +171,50 @@ function mostrarResultado(t,tipo){
 }
 function sonar(tipo){
   if(navigator.vibrate)navigator.vibrate(200);
+  (tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError).currentTime=0;
   (tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError).play();
 }
 
-// SLIDE EVENTS
-function activarSlide(el,estado){
-  let startX;
-  el.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
-  el.addEventListener("touchend",e=>{
-    const endX=e.changedTouches[0].clientX;
-    if(estado==="ENTREGADO" && endX-startX>80) marcar("ENTREGADO");
-    if(estado==="REINTENTO" && startX-endX>80) marcar("REINTENTO");
+/* ===== SLIDE REAL ===== */
+function slideReal(btn,estado){
+  const handle=btn.querySelector(".slide-handle");
+  const max=btn.offsetWidth-handle.offsetWidth-6;
+  let startX=0, current=0, dragging=false;
+
+  handle.addEventListener("touchstart",e=>{
+    startX=e.touches[0].clientX;
+    dragging=true;
+    handle.style.transition="none";
+  });
+
+  handle.addEventListener("touchmove",e=>{
+    if(!dragging)return;
+    current=e.touches[0].clientX-startX;
+    current=Math.max(0,Math.min(current,max));
+    handle.style.left=current+"px";
+  });
+
+  handle.addEventListener("touchend",()=>{
+    dragging=false;
+    handle.style.transition="left .25s ease";
+    if(current>max*0.8){
+      handle.style.left=max+"px";
+      setTimeout(()=>marcar(estado),150);
+    }else{
+      handle.style.left="4px";
+    }
   });
 }
-activarSlide(slideEntregado,"ENTREGADO");
-activarSlide(slideReintento,"REINTENTO");
+
+function resetSliders(){
+  document.querySelectorAll(".slide-handle").forEach(h=>{
+    h.style.transition="left .25s ease";
+    h.style.left="4px";
+  });
+}
+
+slideReal(slideEntregado,"ENTREGADO");
+slideReal(slideReintento,"REINTENTO");
 </script>
 
 </body>
