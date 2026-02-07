@@ -22,17 +22,8 @@ body{
   border-radius:0 0 25px 25px;
   box-shadow:0 4px 15px rgba(0,0,0,.2);
 }
-.logo{
-  font-size:34px;
-  font-weight:bold;
-  letter-spacing:2px;
-}
-.subempresa{
-  font-size:15px;
-  margin-top:4px;
-  color:#9cffc7;
-  font-weight:bold;
-}
+.logo{font-size:34px;font-weight:bold;letter-spacing:2px;}
+.subempresa{font-size:15px;margin-top:4px;color:#9cffc7;font-weight:bold;}
 
 /* CARD */
 .card{
@@ -44,12 +35,8 @@ body{
   max-width:360px;
 }
 
-/* ESCANER */
-#reader{
-  height:220px;
-  border-radius:14px;
-  overflow:hidden;
-}
+/* ESCÁNER */
+#reader{height:220px;border-radius:14px;overflow:hidden;}
 
 /* OVERLAY */
 #overlay{
@@ -65,7 +52,7 @@ body{
   z-index:5;
 }
 
-/* SLIDER */
+/* SLIDERS */
 .slide-btn{
   position:relative;
   height:54px;
@@ -82,7 +69,6 @@ body{
   align-items:center;
   justify-content:center;
   font-weight:bold;
-  font-size:15px;
 }
 .slide-handle{
   position:absolute;
@@ -99,10 +85,12 @@ body{
   box-shadow:0 2px 6px rgba(0,0,0,.3);
   transition:left .25s ease;
 }
-.entregado{ background:#2ecc71; }
-.reintento{ background:#f39c12; }
 
-/* SELLO ENTREGADO */
+.entregado{background:#2ecc71;}
+.reintento{background:#f39c12;}
+.devolucion{background:#e74c3c;}
+
+/* SELLO */
 #selloEntregado{
   position:fixed;
   inset:0;
@@ -144,16 +132,21 @@ body{
   <div id="overlay"></div>
 </div>
 
-<div id="info" class="card" style="font-weight:bold;font-size:16px"></div>
+<div id="info" class="card" style="font-weight:bold"></div>
 
 <div class="slide-btn entregado" id="btnEntregado">
-  <div class="slide-track">Desliza para confirmar entrega</div>
+  <div class="slide-track">Desliza para entregar</div>
   <div class="slide-handle">✅</div>
 </div>
 
 <div class="slide-btn reintento" id="btnReintento">
-  <div class="slide-track">Desliza para marcar reintento</div>
+  <div class="slide-track">Desliza para reintento</div>
   <div class="slide-handle">🔁</div>
+</div>
+
+<div class="slide-btn devolucion" id="btnDevolucion" style="display:none">
+  <div class="slide-track">Desliza para devolución</div>
+  <div class="slide-handle">↩️</div>
 </div>
 
 <div id="selloEntregado">
@@ -166,21 +159,18 @@ body{
 
 <script>
 let guiaActual="";
-let audioListo=false; // 🔓 NUEVO
+let estadoActual="";
+let audioListo=false;
 
 const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
 
-/* 🔓 DESBLOQUEO DE AUDIO */
+/* DESBLOQUEO AUDIO */
 function desbloquearAudio(){
   if(audioListo) return;
-
   sonidoOk.play().then(()=>{
-    sonidoOk.pause();
-    sonidoOk.currentTime=0;
-    audioListo=true;
+    sonidoOk.pause(); sonidoOk.currentTime=0; audioListo=true;
   }).catch(()=>{});
 }
-
 document.addEventListener("touchstart",desbloquearAudio,{once:true});
 document.addEventListener("click",desbloquearAudio,{once:true});
 
@@ -202,52 +192,57 @@ async function buscar(g){
     if(!d.encontrado){
       resultado("❌ GUÍA NO EXISTE","error"); sonar("error"); guiaActual=""; return;
     }
+
     if(d.estado==="ENTREGADO"){
-      resultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn"); guiaActual=""; return;
+      resultado("🚫 YA ENTREGADO","warn"); sonar("warn"); guiaActual=""; return;
     }
 
-    info.innerHTML=`📦 Guía: ${g}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
+    estadoActual=d.estado||"";
+    btnDevolucion.style.display = estadoActual==="REINTENTO" ? "block" : "none";
+
+    info.innerHTML=`📦 ${g}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
     sonar("ok");
 
   }catch{
-    ocultar(); resultado("❌ ERROR DE CONEXIÓN","error"); sonar("error"); guiaActual="";
+    ocultar(); resultado("❌ ERROR CONEXIÓN","error"); sonar("error");
   }
 }
 
 /* ENVIAR */
 async function enviar(estado){
-  if(!guiaActual){resultado("⚠️ ESCANEA UNA GUÍA","warn");sonar("warn");return;}
+
+  if(!guiaActual){
+    resultado("⚠️ ESCANEA UNA GUÍA","warn"); sonar("warn"); return;
+  }
+
+  if(estado==="DEVOLUCION" && estadoActual!=="REINTENTO"){
+    resultado("⚠️ SOLO DESPUÉS DE REINTENTO","warn"); sonar("warn"); return;
+  }
 
   mostrar("⏳ PROCESANDO...");
   try{
-    const r=await fetch(URL,{
+    await fetch(URL,{
       method:"POST",
       headers:{"Content-Type":"application/x-www-form-urlencoded"},
       body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
     });
 
-    const t=await r.text();
     ocultar();
 
-    if(t==="ENTREGADO"){
-      resultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
-      sonar("warn");
+    if(estado==="ENTREGADO"){
+      mostrarSelloEntregado(); resultado("✅ ENTREGADO","ok"); sonar("ok");
     }
-    else if(estado==="ENTREGADO"){
-      mostrarSelloEntregado();
-      resultado("✅ PEDIDO ENTREGADO","ok");
-      sonar("ok");
+    else if(estado==="DEVOLUCION"){
+      resultado("↩️ EN DEVOLUCIÓN","warn"); sonar("warn");
     }
     else{
-      resultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn");
-      sonar("warn");
+      resultado("🔁 REINTENTO","warn"); sonar("warn");
     }
 
-    guiaActual="";
-    info.innerHTML="";
+    guiaActual=""; estadoActual=""; info.innerHTML=""; btnDevolucion.style.display="none";
 
   }catch{
-    ocultar(); resultado("❌ ERROR DE CONEXIÓN","error"); sonar("error");
+    ocultar(); resultado("❌ ERROR","error"); sonar("error");
   }
 }
 
@@ -255,7 +250,6 @@ async function enviar(estado){
 function slider(el,estado){
   let startX;
   const h=el.querySelector(".slide-handle");
-
   el.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
   el.addEventListener("touchmove",e=>{
     let dx=e.touches[0].clientX-startX;
@@ -267,8 +261,10 @@ function slider(el,estado){
     setTimeout(()=>h.style.left="4px",200);
   });
 }
+
 slider(btnEntregado,"ENTREGADO");
 slider(btnReintento,"REINTENTO");
+slider(btnDevolucion,"DEVOLUCION");
 
 /* UI */
 function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
@@ -277,21 +273,18 @@ function resultado(t,tipo){
   overlay.innerText=t;
   overlay.style.background=
     tipo==="ok"?"rgba(0,120,60,.85)":
-    tipo==="warn"?"rgba(180,120,0,.85)":
-    "rgba(160,0,0,.85)";
+    tipo==="warn"?"rgba(180,120,0,.85)":"rgba(160,0,0,.85)";
   overlay.style.display="flex";
   setTimeout(()=>overlay.style.display="none",1800);
 }
 function sonar(tipo){
   if(navigator.vibrate) navigator.vibrate(200);
   let a=tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError;
-  a.currentTime=0;
-  a.play();
+  a.currentTime=0; a.play();
 }
 function mostrarSelloEntregado(){
-  const s=document.getElementById("selloEntregado");
-  s.style.display="flex";
-  setTimeout(()=>s.style.display="none",1200);
+  selloEntregado.style.display="flex";
+  setTimeout(()=>selloEntregado.style.display="none",1200);
 }
 </script>
 
