@@ -7,37 +7,34 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-
 body{
   font-family:Arial;
-  text-align:center;
   background:#f4f6f8;
   margin:0;
+  text-align:center;
 }
 
 /* HEADER */
 .header{
   background:linear-gradient(135deg,#0f3d2e,#1e8e5a);
   color:white;
-  padding:22px 10px 18px;
-  border-radius:0 0 25px 25px;
-  box-shadow:0 4px 15px rgba(0,0,0,.2);
+  padding:24px 10px 20px;
+  border-radius:0 0 26px 26px;
+  box-shadow:0 4px 18px rgba(0,0,0,.25);
 }
-
 .logo{
-  font-size:34px;
-  font-weight:bold;
+  font-size:36px;
+  font-weight:800;
   letter-spacing:2px;
 }
-
 .subempresa{
+  margin-top:6px;
   font-size:15px;
-  margin-top:4px;
   color:#9cffc7;
   font-weight:bold;
 }
 
-/* TARJETAS */
+/* CARD */
 .card{
   background:white;
   border-radius:16px;
@@ -47,11 +44,19 @@ body{
   max-width:360px;
 }
 
-/* ESCANER */
+/* SCANNER */
 #reader{
   height:220px;
   border-radius:14px;
   overflow:hidden;
+}
+.scan-success{
+  animation:flashGreen .6s ease;
+}
+@keyframes flashGreen{
+  0%{box-shadow:0 0 0 rgba(46,204,113,0)}
+  50%{box-shadow:0 0 26px rgba(46,204,113,.9)}
+  100%{box-shadow:0 0 0 rgba(46,204,113,0)}
 }
 
 /* OVERLAY */
@@ -78,7 +83,6 @@ body{
   overflow:hidden;
   color:white;
 }
-
 .slide-track{
   position:absolute;
   inset:0;
@@ -86,9 +90,7 @@ body{
   align-items:center;
   justify-content:center;
   font-weight:bold;
-  font-size:15px;
 }
-
 .slide-handle{
   position:absolute;
   top:4px;
@@ -102,211 +104,171 @@ body{
   justify-content:center;
   font-size:22px;
   box-shadow:0 2px 6px rgba(0,0,0,.3);
-  transition:left .2s;
+  transition:left .25s cubic-bezier(.4,1.4,.6,1), transform .15s;
 }
+.slide-handle.dragging{ transform:scale(1.1); }
 
-.entregado{ background:#2ecc71; }
-.reintento{ background:#f39c12; }
+.entregado{background:#2ecc71}
+.reintento{background:#f39c12}
 
+/* TOAST */
+#toast{
+  position:fixed;
+  bottom:-80px;
+  left:50%;
+  transform:translateX(-50%);
+  padding:14px 22px;
+  background:#2ecc71;
+  color:white;
+  font-weight:bold;
+  border-radius:14px;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);
+  transition:bottom .4s ease;
+  z-index:999;
+}
+#toast.show{bottom:30px}
 </style>
 </head>
 
 <body>
 
-<!-- HEADER -->
 <div class="header">
   <div class="logo">HEIGASER</div>
   <div class="subempresa">Operado por ENVÍOS GW</div>
 </div>
 
-<!-- ESCANER -->
 <div class="card" style="position:relative">
   <div id="reader"></div>
   <div id="overlay"></div>
 </div>
 
-<!-- INFO -->
-<div id="info" class="card" style="font-weight:bold;font-size:16px"></div>
+<div id="info" class="card" style="font-weight:bold"></div>
 
-<!-- SLIDER ENTREGADO -->
 <div class="slide-btn entregado" id="btnEntregado">
   <div class="slide-track">Desliza para confirmar entrega</div>
   <div class="slide-handle">✅</div>
 </div>
 
-<!-- SLIDER REINTENTO -->
 <div class="slide-btn reintento" id="btnReintento">
   <div class="slide-track">Desliza para marcar reintento</div>
   <div class="slide-handle">🔁</div>
 </div>
 
+<div id="toast"></div>
+
 <!-- SONIDOS -->
-<audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
-<audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
-<audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+<audio id="soundScan" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+<audio id="soundOk" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+<audio id="soundWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="soundError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <script>
-
 let guiaActual="";
-
 const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
 
-/* ESCANER */
+/* SCAN */
 const qr=new Html5Qrcode("reader");
-
 Html5Qrcode.getCameras().then(c=>{
-  qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscar(t));
+  qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>{
+    feedbackScan();
+    buscar(t);
+  });
 });
+
+function feedbackScan(){
+  reader.classList.add("scan-success");
+  soundScan.play();
+  navigator.vibrate?.(120);
+  setTimeout(()=>reader.classList.remove("scan-success"),600);
+}
 
 /* BUSCAR */
 async function buscar(g){
   guiaActual=g;
-  mostrar("🔍 BUSCANDO PEDIDO...");
-
+  mostrar("🔍 BUSCANDO...");
   try{
     const r=await fetch(`${URL}?guia=${encodeURIComponent(g)}`);
     const d=await r.json();
-
     ocultar();
 
-    if(!d.encontrado){
-      resultado("❌ GUÍA NO EXISTE","error");
-      sonar("error");
-      guiaActual="";
-      return;
-    }
+    if(!d.encontrado){toast("❌ GUÍA NO EXISTE",false);guiaActual="";return;}
+    if(d.estado==="ENTREGADO"){toast("🚫 YA ENTREGADO",false);guiaActual="";return;}
 
-    if(d.estado==="ENTREGADO"){
-      resultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
-      sonar("warn");
-      guiaActual="";
-      return;
-    }
-
-    info.innerHTML=`
-    📦 Guía: ${g}<br>
-    👤 ${d.nombre || "SIN NOMBRE"}<br>
-    💰 $${Number(d.valor || 0).toLocaleString()}
-    `;
-
-    sonar("ok");
-
+    info.innerHTML=`📦 ${g}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
   }catch{
     ocultar();
-    resultado("❌ ERROR DE CONEXIÓN","error");
-    sonar("error");
+    toast("❌ ERROR DE CONEXIÓN",false);
     guiaActual="";
   }
 }
 
-/* MARCAR */
+/* ENVIAR */
 async function enviar(estado){
-
-  if(!guiaActual){
-    resultado("⚠️ ESCANEA UNA GUÍA","warn");
-    sonar("warn");
-    return;
-  }
-
+  if(!guiaActual){toast("⚠️ ESCANEA UNA GUÍA",false);return;}
   mostrar("⏳ PROCESANDO...");
-
   try{
-
     const r=await fetch(URL,{
       method:"POST",
       headers:{"Content-Type":"application/x-www-form-urlencoded"},
       body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
     });
-
     const t=await r.text();
     ocultar();
 
-    if(t==="ENTREGADO"){
-      resultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
-      sonar("warn");
-    }
-    else if(estado==="ENTREGADO"){
-      resultado("✅ PEDIDO ENTREGADO","ok");
-      sonar("ok");
-    }
-    else{
-      resultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn");
-      sonar("warn");
-    }
+    if(t==="ENTREGADO") toast("🚫 YA ENTREGADO",false);
+    else if(estado==="ENTREGADO"){ toast("✔ ENTREGADO"); soundOk.play();}
+    else toast("🔁 REINTENTO",false);
 
     guiaActual="";
     info.innerHTML="";
-
   }catch{
     ocultar();
-    resultado("❌ ERROR DE CONEXIÓN","error");
-    sonar("error");
+    toast("❌ ERROR DE CONEXIÓN",false);
   }
 }
 
-/* SLIDER */
+/* SLIDER REAL */
 function slider(el,estado){
-
-  let startX;
   const h=el.querySelector(".slide-handle");
+  let startX=0,drag=false;
+  const max=el.offsetWidth-h.offsetWidth-6;
 
-  el.addEventListener("touchstart",e=>{
-    startX=e.touches[0].clientX;
+  h.addEventListener("touchstart",e=>{
+    drag=true;
+    startX=e.touches[0].clientX-h.offsetLeft;
+    h.classList.add("dragging");
   });
 
-  el.addEventListener("touchmove",e=>{
-    let dx=e.touches[0].clientX-startX;
-    dx=Math.max(3,Math.min(260,dx));
-    h.style.left=dx+"px";
+  h.addEventListener("touchmove",e=>{
+    if(!drag) return;
+    let x=e.touches[0].clientX-startX;
+    x=Math.max(4,Math.min(max,x));
+    h.style.left=x+"px";
   });
 
-  el.addEventListener("touchend",()=>{
-    if(h.offsetLeft>200) enviar(estado);
-    h.style.left="4px";
+  h.addEventListener("touchend",()=>{
+    drag=false;
+    h.classList.remove("dragging");
+    if(h.offsetLeft>max*.75){
+      h.style.left=max+"px";
+      setTimeout(()=>enviar(estado),150);
+    }else h.style.left="4px";
   });
-
 }
 
 slider(btnEntregado,"ENTREGADO");
 slider(btnReintento,"REINTENTO");
 
 /* UI */
-function mostrar(t){
-  overlay.innerText=t;
-  overlay.style.display="flex";
+function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
+function ocultar(){overlay.style.display="none";}
+function toast(msg,ok=true){
+  toastEl.innerText=msg;
+  toastEl.style.background=ok?"#2ecc71":"#f39c12";
+  toastEl.classList.add("show");
+  setTimeout(()=>toastEl.classList.remove("show"),1500);
 }
-
-function ocultar(){
-  overlay.style.display="none";
-}
-
-function resultado(t,tipo){
-
-  overlay.innerText=t;
-
-  overlay.style.background=
-    tipo==="ok" ? "rgba(0,120,60,.85)" :
-    tipo==="warn" ? "rgba(180,120,0,.85)" :
-    "rgba(160,0,0,.85)";
-
-  overlay.style.display="flex";
-
-  setTimeout(()=>overlay.style.display="none",1800);
-}
-
-/* SONIDO + VIBRACION */
-function sonar(tipo){
-  if(navigator.vibrate) navigator.vibrate(200);
-
-  let a=
-    tipo==="ok" ? sonidoOk :
-    tipo==="warn" ? sonidoWarn :
-    sonidoError;
-
-  a.currentTime=0;
-  a.play();
-}
-
+const toastEl=document.getElementById("toast");
 </script>
 
 </body>
