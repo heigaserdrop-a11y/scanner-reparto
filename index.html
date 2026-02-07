@@ -156,19 +156,33 @@ body{
   <div class="slide-handle">🔁</div>
 </div>
 
-<!-- SELLO -->
 <div id="selloEntregado">
   <div class="sello">ENTREGADO</div>
 </div>
 
-<!-- SONIDOS -->
 <audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
 <audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
 <audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <script>
 let guiaActual="";
+let audioListo=false; // 🔓 NUEVO
+
 const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
+
+/* 🔓 DESBLOQUEO DE AUDIO */
+function desbloquearAudio(){
+  if(audioListo) return;
+
+  sonidoOk.play().then(()=>{
+    sonidoOk.pause();
+    sonidoOk.currentTime=0;
+    audioListo=true;
+  }).catch(()=>{});
+}
+
+document.addEventListener("touchstart",desbloquearAudio,{once:true});
+document.addEventListener("click",desbloquearAudio,{once:true});
 
 /* ESCANER */
 const qr=new Html5Qrcode("reader");
@@ -220,9 +234,9 @@ async function enviar(estado){
       sonar("warn");
     }
     else if(estado==="ENTREGADO"){
-      mostrarSelloEntregado();   // 👈 SOLO SE AGREGA ESTO
+      mostrarSelloEntregado();
       resultado("✅ PEDIDO ENTREGADO","ok");
-      sonar("ok");               // 👈 SONIDO COMO ANTES
+      sonar("ok");
     }
     else{
       resultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn");
@@ -271,7 +285,8 @@ function resultado(t,tipo){
 function sonar(tipo){
   if(navigator.vibrate) navigator.vibrate(200);
   let a=tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError;
-  a.currentTime=0; a.play();
+  a.currentTime=0;
+  a.play();
 }
 function mostrarSelloEntregado(){
   const s=document.getElementById("selloEntregado");
