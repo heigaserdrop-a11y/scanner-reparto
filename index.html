@@ -7,214 +7,137 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-body{
-  font-family:Arial;
-  text-align:center;
-  padding:15px;
+.slide-btn {
+  position: relative;
+  width: 100%;
+  height: 52px;
+  border-radius: 30px;
+  margin: 12px 0;
+  overflow: hidden;
 }
-
-/* ===== SLIDE BUTTON ===== */
-.slide-btn{
-  position:relative;
-  width:100%;
-  height:54px;
-  border-radius:30px;
-  margin:12px 0;
-  overflow:hidden;
-  user-select:none;
-}
-
-.slide-track{
+.slide-track {
   position:absolute;
   inset:0;
   display:flex;
   align-items:center;
   justify-content:center;
   font-weight:bold;
-  color:white;
 }
-
-.slide-handle{
+.slide-handle {
   position:absolute;
-  top:4px;
+  top:3px;
+  left:3px;
   width:46px;
   height:46px;
   border-radius:50%;
-  background:white;
-  box-shadow:0 2px 6px rgba(0,0,0,.35);
+  background:#fff;
   display:flex;
   align-items:center;
   justify-content:center;
   font-size:22px;
-  z-index:2;
-  transition:left .25s ease;
+  box-shadow:0 2px 6px rgba(0,0,0,.3);
+  transition:left .2s;
 }
-
-.entregado{background:#2ecc71;}
-.reintento{background:#f39c12;}
+.entregado { background:#2ecc71; color:#fff; }
+.reintento { background:#f39c12; color:#fff; }
 </style>
 </head>
 
-<body>
+<body style="font-family:Arial;text-align:center;padding:15px">
 
-<h1>HEIGASER</h1>
-<h3>Escanear Guía</h3>
+<h2>HEIGASER</h2>
 
-<div style="position:relative;max-width:360px;margin:auto">
-  <div id="reader" style="width:100%;height:220px;border-radius:12px;overflow:hidden"></div>
-
-  <div id="overlay" style="
-    display:none;
-    position:absolute;
-    inset:0;
-    background:rgba(0,0,0,.85);
-    color:white;
-    font-size:20px;
-    font-weight:bold;
-    border-radius:12px;
-    align-items:center;
-    justify-content:center;
-    z-index:5;
-    text-align:center;
-    padding:15px;">
-  </div>
+<div style="max-width:360px;margin:auto;position:relative">
+  <div id="reader" style="height:220px;border-radius:12px;overflow:hidden"></div>
+  <div id="overlay" style="display:none;position:absolute;inset:0;
+    background:rgba(0,0,0,.85);color:white;font-size:18px;
+    align-items:center;justify-content:center;border-radius:12px"></div>
 </div>
 
-<div id="info" style="margin-top:15px;font-size:16px;font-weight:bold"></div>
+<div id="info" style="margin-top:12px;font-weight:bold"></div>
 
-<!-- ===== SLIDE ENTREGADO ===== -->
-<div class="slide-btn entregado" id="slideEntregado">
+<input type="file" id="foto" accept="image/*" capture="environment" style="margin:10px 0;width:100%">
+
+<div class="slide-btn entregado" id="btnEntregado">
   <div class="slide-track">DESLIZA PARA ENTREGAR</div>
-  <div class="slide-handle" style="left:4px">✅</div>
+  <div class="slide-handle">✅</div>
 </div>
 
-<!-- ===== SLIDE REINTENTO ===== -->
-<div class="slide-btn reintento" id="slideReintento">
+<div class="slide-btn reintento" id="btnReintento">
   <div class="slide-track">DESLIZA PARA REINTENTO</div>
-  <div class="slide-handle" style="left:4px">🔁</div>
+  <div class="slide-handle">🔁</div>
 </div>
-
-<audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
-<audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
-<audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <script>
 let guiaActual="";
-const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
+let imagenBase64="";
+const URL="https://script.google.com/macros/s/AKfycbxuxWqOPnUAvNX-sirgTP3gZ8F-Q_PkEQVcRs3Q9j2lzvOqCWyJ3rQ8u2da6avwKSxPzQ/exec";
 
-/* ===== ESCÁNER ===== */
-const html5QrCode=new Html5Qrcode("reader");
+// FOTO
+foto.onchange=()=>{
+  const reader=new FileReader();
+  reader.onload=()=>imagenBase64=reader.result;
+  reader.readAsDataURL(foto.files[0]);
+};
+
+// ESCÁNER
+const qr=new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(c=>{
-  html5QrCode.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscarGuia(t));
+  qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscar(t));
 });
 
-/* ===== BUSCAR GUÍA ===== */
-async function buscarGuia(guia){
-  guiaActual=guia;
-  mostrar("🔍 BUSCANDO PEDIDO...");
-  try{
-    const r=await fetch(`${URL}?guia=${encodeURIComponent(guia)}`);
-    const d=await r.json();
-    ocultar();
-
-    if(!d.encontrado){
-      mostrarResultado("❌ GUÍA NO EXISTE","error"); sonar("error"); guiaActual=""; return;
-    }
-    if(d.estado==="ENTREGADO"){
-      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn"); guiaActual=""; return;
-    }
-
-    info.innerHTML=`📦 ${guia}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
-    sonar("ok");
-  }catch{
-    ocultar();
-    mostrarResultado("❌ ERROR DE CONEXIÓN","error"); sonar("error"); guiaActual="";
-  }
+async function buscar(g){
+  guiaActual=g;
+  mostrar("🔍 BUSCANDO...");
+  const r=await fetch(`${URL}?guia=${g}`);
+  const d=await r.json();
+  ocultar();
+  if(!d.encontrado){mensaje("❌ NO EXISTE");return;}
+  if(d.estado==="ENTREGADO"){mensaje("🚫 YA ENTREGADO");guiaActual="";return;}
+  info.innerHTML=`📦 ${g}<br>👤 ${d.nombre}<br>💰 $${Number(d.valor).toLocaleString()}`;
 }
 
-/* ===== MARCAR ===== */
-async function marcar(estado){
-  if(!guiaActual){mostrarResultado("⚠️ ESCANEA UNA GUÍA","warn"); sonar("warn"); return;}
+async function enviar(estado){
+  if(!guiaActual){mensaje("⚠️ ESCANEA");return;}
+  if(estado==="ENTREGADO" && !imagenBase64){mensaje("📸 FOTO OBLIGATORIA");return;}
+
   mostrar("⏳ PROCESANDO...");
-  try{
-    const r=await fetch(URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/x-www-form-urlencoded"},
-      body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
-    });
-    const t=await r.text(); ocultar();
+  const r=await fetch(URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:`guia=${guiaActual}&estado=${estado}&imagen=${encodeURIComponent(imagenBase64)}`
+  });
+  const t=await r.text();
+  ocultar();
 
-    if(t==="ENTREGADO"){
-      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn");
-    }else if(estado==="ENTREGADO"){
-      mostrarResultado("✅ PEDIDO ENTREGADO","ok"); sonar("ok");
-    }else{
-      mostrarResultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn"); sonar("warn");
-    }
+  if(t==="ENTREGADO") mensaje("🚫 YA ENTREGADO");
+  else if(t==="ACTUALIZADO") mensaje("✅ ENTREGADO");
+  else if(t==="REINTENTO") mensaje("🔁 REINTENTO");
+  else mensaje("❌ ERROR");
 
-    guiaActual=""; info.innerHTML="";
-    resetSliders();
-  }catch{
-    ocultar();
-    mostrarResultado("❌ ERROR DE CONEXIÓN","error"); sonar("error");
-  }
+  guiaActual=""; imagenBase64=""; info.innerHTML=""; foto.value="";
 }
 
-/* ===== OVERLAY ===== */
+function slider(el,estado){
+  let startX;
+  const h=el.querySelector(".slide-handle");
+  el.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
+  el.addEventListener("touchmove",e=>{
+    const dx=e.touches[0].clientX-startX;
+    h.style.left=Math.min(260,Math.max(3,dx))+"px";
+  });
+  el.addEventListener("touchend",e=>{
+    if(h.offsetLeft>200) enviar(estado);
+    h.style.left="3px";
+  });
+}
+
+slider(btnEntregado,"ENTREGADO");
+slider(btnReintento,"REINTENTO");
+
 function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
 function ocultar(){overlay.style.display="none";}
-function mostrarResultado(t,tipo){
-  overlay.innerText=t;
-  overlay.style.background=tipo==="ok"?"rgba(0,120,60,.85)":tipo==="warn"?"rgba(180,120,0,.85)":"rgba(160,0,0,.85)";
-  overlay.style.display="flex";
-  setTimeout(()=>overlay.style.display="none",1800);
-}
-function sonar(tipo){
-  if(navigator.vibrate)navigator.vibrate(200);
-  (tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError).currentTime=0;
-  (tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError).play();
-}
-
-/* ===== SLIDE REAL ===== */
-function slideReal(btn,estado){
-  const handle=btn.querySelector(".slide-handle");
-  const max=btn.offsetWidth-handle.offsetWidth-6;
-  let startX=0, current=0, dragging=false;
-
-  handle.addEventListener("touchstart",e=>{
-    startX=e.touches[0].clientX;
-    dragging=true;
-    handle.style.transition="none";
-  });
-
-  handle.addEventListener("touchmove",e=>{
-    if(!dragging)return;
-    current=e.touches[0].clientX-startX;
-    current=Math.max(0,Math.min(current,max));
-    handle.style.left=current+"px";
-  });
-
-  handle.addEventListener("touchend",()=>{
-    dragging=false;
-    handle.style.transition="left .25s ease";
-    if(current>max*0.8){
-      handle.style.left=max+"px";
-      setTimeout(()=>marcar(estado),150);
-    }else{
-      handle.style.left="4px";
-    }
-  });
-}
-
-function resetSliders(){
-  document.querySelectorAll(".slide-handle").forEach(h=>{
-    h.style.transition="left .25s ease";
-    h.style.left="4px";
-  });
-}
-
-slideReal(slideEntregado,"ENTREGADO");
-slideReal(slideReintento,"REINTENTO");
+function mensaje(t){mostrar(t);setTimeout(ocultar,1500);}
 </script>
 
 </body>
