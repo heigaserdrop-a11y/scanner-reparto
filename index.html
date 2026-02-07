@@ -1,137 +1,111 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HEIGASER - Escáner</title>
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-body {
-  font-family: Arial;
-  text-align: center;
-  padding: 20px;
-}
-
-#scanner-box {
-  position: relative;
-  max-width: 360px;
-  height: 260px;
-  margin: auto;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-#reader {
-  width: 100%;
-  height: 100%;
-}
-
-#overlay {
-  display: none;
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.85);
-  color: white;
-  font-size: 22px;
-  font-weight: bold;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 20px;
-  z-index: 10;
-}
-
-button {
-  padding: 15px;
-  margin: 10px;
-  width: 90%;
-  font-size: 18px;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HEIGASER - Escáner</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
-<body>
+<body style="font-family: Arial; text-align: center; padding: 20px;">
 
 <h1>HEIGASER</h1>
 <h2>Escanear Guía</h2>
 
-<div id="scanner-box">
-  <div id="reader"></div>
-  <div id="overlay"></div>
+<div style="position:relative; max-width:400px; margin:auto;">
+  <div id="reader" style="width:100%; height:300px;"></div>
+
+  <div id="overlay" style="
+    display:none;
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:300px;
+    background:rgba(0,0,0,0.85);
+    color:white;
+    font-size:26px;
+    font-weight:bold;
+    border-radius:10px;
+    align-items:center;
+    justify-content:center;
+    z-index:10;
+    text-align:center;
+    padding:20px;
+  "></div>
 </div>
 
-<p id="guia" style="font-size:18px;font-weight:bold;margin-top:15px;"></p>
+<p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
 
-<button onclick="marcar('ENTREGADO')">✅ ENTREGADO</button>
-<button onclick="marcar('REINTENTO')">🔁 REINTENTO</button>
+<button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
+  ✅ ENTREGADO
+</button>
 
-<audio id="ok" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
-<audio id="warn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
-<audio id="error" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+<button onclick="marcar('REINTENTO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
+  🔁 REINTENTO
+</button>
+
+<audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
+<audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <script>
 let guiaActual = "";
-let vibracionHabilitada = false;
 
-// ===== ESCÁNER =====
-const scanner = new Html5Qrcode("reader");
-
+// ESCÁNER
+const html5QrCode = new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(cameras => {
-  scanner.start(
+  html5QrCode.start(
     cameras[cameras.length - 1].id,
-    { fps: 10, qrbox: 200 },
-    text => {
-      guiaActual = text;
-      document.getElementById("guia").innerText = "Guía: " + text;
+    { fps: 10, qrbox: 250 },
+    texto => {
+      guiaActual = texto;
+      document.getElementById("guia").innerText = "Guía: " + texto;
     }
   );
 });
 
-// ===== BOTONES =====
 async function marcar(estado) {
-
-  // 🔓 desbloquea vibración con el primer toque
-  vibrar([1]);
-  vibracionHabilitada = true;
-
   if (!guiaActual) {
     mostrar("⚠️ ESCANEA UNA GUÍA", "warn");
-    vibrar([200]);
+    sonar("warn");
     return;
   }
 
-  mostrar("⏳ PROCESANDO...", null);
+  mostrar("⏳ PROCESANDO...", "wait");
 
   try {
-    const res = await fetch(
+    const r = await fetch(
       "https://script.google.com/macros/s/AKfycbyPCcOKNTA3_Rm4ZmwNkg-uV6UBFkOtkixp0jSdIkw_9ug_JMo7gkhR7O7ICKcAX-G61Q/exec",
       {
         method: "POST",
-        headers: {"Content-Type":"application/x-www-form-urlencoded"},
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
       }
     );
 
-    const txt = await res.text();
+    const text = await r.text();
 
-    if (txt === "DUPLICADO") {
+    // ✅ RESPUESTAS CORRECTAS
+    if (text === "GUARDADO") {
+      mostrar("✅ REGISTRADO CORRECTAMENTE", "ok");
+      sonar("ok");
+    }
+    else if (text === "ACTUALIZADO") {
+      mostrar("✅ PEDIDO ENTREGADO", "ok");
+      sonar("ok");
+    }
+    else if (text === "ENTREGADO") {
+      mostrar("🚫 YA FUE ENTREGADO", "warn");
+      sonar("warn");
+    }
+    else if (text === "DUPLICADO") {
       mostrar("🚫 GUÍA YA REGISTRADA", "warn");
-      vibrar([200,100,200]);
-    } 
-    else if (txt === "GUARDADO") {
-      mostrar(
-        estado === "ENTREGADO"
-          ? "✅ PEDIDO ENTREGADO"
-          : "🔁 REINTENTO REGISTRADO",
-        "ok"
-      );
-      vibrar([300]);
-    } 
+      sonar("warn");
+    }
     else {
-      mostrar("❌ ERROR", "error");
-      vibrar([400,150,400]);
+      mostrar("❌ ERROR DESCONOCIDO", "error");
+      sonar("error");
     }
 
     guiaActual = "";
@@ -139,31 +113,29 @@ async function marcar(estado) {
 
   } catch {
     mostrar("❌ ERROR DE CONEXIÓN", "error");
-    vibrar([400,150,400]);
+    sonar("error");
   }
 }
 
-// ===== OVERLAY + SONIDO =====
 function mostrar(texto, tipo) {
   const o = document.getElementById("overlay");
   o.innerText = texto;
   o.style.display = "flex";
 
-  if (tipo === "ok") ok.play();
-  if (tipo === "warn") warn.play();
-  if (tipo === "error") error.play();
+  if (tipo === "ok") o.style.background = "rgba(0,120,60,0.85)";
+  else if (tipo === "warn") o.style.background = "rgba(180,120,0,0.85)";
+  else if (tipo === "wait") o.style.background = "rgba(0,0,0,0.85)";
+  else o.style.background = "rgba(160,0,0,0.85)";
 
-  if (tipo) setTimeout(() => o.style.display = "none", 2000);
+  setTimeout(() => o.style.display = "none", 2000);
 }
 
-// ===== VIBRACIÓN REAL =====
-function vibrar(patron) {
-  if (navigator.vibrate) {
-    navigator.vibrate(patron);
-  }
+function sonar(tipo) {
+  let a = tipo === "ok" ? sonidoOk : tipo === "warn" ? sonidoWarn : sonidoError;
+  a.currentTime = 0;
+  a.play();
 }
 </script>
 
 </body>
 </html>
-
