@@ -69,33 +69,50 @@
 
 <div id="info" style="margin-top:12px;font-weight:bold;font-size:16px"></div>
 
-<!-- SLIDE ENTREGADO -->
 <div class="slide-btn entregado" id="btnEntregado">
   <div class="slide-track">DESLIZA PARA ENTREGAR</div>
   <div class="slide-handle">✅</div>
 </div>
 
-<!-- SLIDE REINTENTO -->
 <div class="slide-btn reintento" id="btnReintento">
   <div class="slide-track">DESLIZA PARA REINTENTO</div>
   <div class="slide-handle">🔁</div>
 </div>
 
-<audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
-<audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
-<audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+<!-- 🔊 SONIDOS -->
+<audio id="sndScan" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+<audio id="sndOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
+<audio id="sndWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="sndError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <script>
 let guiaActual="";
 const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
 
-// ESCÁNER
+// ===== SONIDO + VIBRAR =====
+function beep(tipo){
+  if(navigator.vibrate) navigator.vibrate(150);
+  const a = {
+    scan: sndScan,
+    ok: sndOk,
+    warn: sndWarn,
+    error: sndError
+  }[tipo];
+  a.currentTime = 0;
+  a.play().catch(()=>{});
+}
+
+// ===== ESCÁNER =====
 const qr=new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(c=>{
-  qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscarGuia(t));
+  qr.start(
+    c[c.length-1].id,
+    {fps:10,qrbox:180},
+    t=>buscarGuia(t)
+  );
 });
 
-// BUSCAR GUÍA
+// ===== BUSCAR GUÍA =====
 async function buscarGuia(g){
   guiaActual=g;
   mostrar("🔍 BUSCANDO PEDIDO...");
@@ -106,14 +123,14 @@ async function buscarGuia(g){
 
     if(!d.encontrado){
       mostrarResultado("❌ GUÍA NO EXISTE","error");
-      sonar("error");
+      beep("error");
       guiaActual="";
       return;
     }
 
     if(d.estado==="ENTREGADO"){
-      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
-      sonar("warn");
+      mostrarResultado("🚫 YA FUE ENTREGADO","warn");
+      beep("warn");
       guiaActual="";
       return;
     }
@@ -123,21 +140,21 @@ async function buscarGuia(g){
       👤 ${d.nombre || "SIN NOMBRE"}<br>
       💰 $${Number(d.valor || 0).toLocaleString()}
     `;
-    sonar("ok");
+    beep("scan");
 
   }catch{
     ocultar();
     mostrarResultado("❌ ERROR DE CONEXIÓN","error");
-    sonar("error");
+    beep("error");
     guiaActual="";
   }
 }
 
-// MARCAR ESTADO
+// ===== MARCAR =====
 async function marcar(estado){
   if(!guiaActual){
     mostrarResultado("⚠️ ESCANEA UNA GUÍA","warn");
-    sonar("warn");
+    beep("warn");
     return;
   }
 
@@ -152,14 +169,16 @@ async function marcar(estado){
     ocultar();
 
     if(t==="ENTREGADO"){
-      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
-      sonar("warn");
-    }else if(estado==="ENTREGADO"){
+      mostrarResultado("🚫 YA FUE ENTREGADO","warn");
+      beep("warn");
+    }
+    else if(estado==="ENTREGADO"){
       mostrarResultado("✅ PEDIDO ENTREGADO","ok");
-      sonar("ok");
-    }else{
-      mostrarResultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn");
-      sonar("warn");
+      beep("ok");
+    }
+    else{
+      mostrarResultado("🔁 MARCADO PARA REINTENTO","warn");
+      beep("warn");
     }
 
     guiaActual="";
@@ -168,11 +187,11 @@ async function marcar(estado){
   }catch{
     ocultar();
     mostrarResultado("❌ ERROR DE CONEXIÓN","error");
-    sonar("error");
+    beep("error");
   }
 }
 
-// UI
+// ===== UI =====
 function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
 function ocultar(){overlay.style.display="none";}
 function mostrarResultado(t,tipo){
@@ -184,12 +203,8 @@ function mostrarResultado(t,tipo){
   overlay.style.display="flex";
   setTimeout(()=>overlay.style.display="none",1700);
 }
-function sonar(tipo){
-  if(navigator.vibrate)navigator.vibrate(150);
-  (tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError).play();
-}
 
-// SLIDERS
+// ===== SLIDERS =====
 function slider(el,estado){
   let startX;
   const h=el.querySelector(".slide-handle");
