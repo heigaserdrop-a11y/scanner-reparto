@@ -8,48 +8,47 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-  body {
-    font-family: Arial;
-    text-align: center;
-    padding: 20px;
-  }
+body {
+  font-family: Arial;
+  text-align: center;
+  padding: 20px;
+}
 
-  #scanner-box {
-    position: relative;
-    width: 100%;
-    max-width: 360px;
-    height: 260px;
-    margin: auto;
-    border-radius: 12px;
-    overflow: hidden;
-  }
+#scanner-box {
+  position: relative;
+  max-width: 360px;
+  height: 260px;
+  margin: auto;
+  border-radius: 12px;
+  overflow: hidden;
+}
 
-  #reader {
-    width: 100%;
-    height: 100%;
-  }
+#reader {
+  width: 100%;
+  height: 100%;
+}
 
-  #overlay {
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    color: white;
-    font-size: 22px;
-    font-weight: bold;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 20px;
-    z-index: 10;
-  }
+#overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  color: white;
+  font-size: 22px;
+  font-weight: bold;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  z-index: 10;
+}
 
-  button {
-    padding: 15px;
-    margin: 10px;
-    width: 90%;
-    font-size: 18px;
-  }
+button {
+  padding: 15px;
+  margin: 10px;
+  width: 90%;
+  font-size: 18px;
+}
 </style>
 </head>
 
@@ -63,18 +62,18 @@
   <div id="overlay"></div>
 </div>
 
-<p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
+<p id="guia" style="font-size:18px;font-weight:bold;margin-top:15px;"></p>
 
 <button onclick="marcar('ENTREGADO')">✅ ENTREGADO</button>
 <button onclick="marcar('REINTENTO')">🔁 REINTENTO</button>
 
-<!-- SONIDOS -->
 <audio id="ok" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
 <audio id="warn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
 <audio id="error" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <script>
 let guiaActual = "";
+let vibracionHabilitada = false;
 
 // ===== ESCÁNER =====
 const scanner = new Html5Qrcode("reader");
@@ -86,17 +85,20 @@ Html5Qrcode.getCameras().then(cameras => {
     text => {
       guiaActual = text;
       document.getElementById("guia").innerText = "Guía: " + text;
-
-      // 📳 vibración al escanear
-      vibrar([100]);
     }
   );
 });
 
 // ===== BOTONES =====
 async function marcar(estado) {
+
+  // 🔓 desbloquea vibración con el primer toque
+  vibrar([1]);
+  vibracionHabilitada = true;
+
   if (!guiaActual) {
     mostrar("⚠️ ESCANEA UNA GUÍA", "warn");
+    vibrar([200]);
     return;
   }
 
@@ -147,16 +149,14 @@ function mostrar(texto, tipo) {
   o.innerText = texto;
   o.style.display = "flex";
 
-  if (tipo === "ok") document.getElementById("ok").play();
-  if (tipo === "warn") document.getElementById("warn").play();
-  if (tipo === "error") document.getElementById("error").play();
+  if (tipo === "ok") ok.play();
+  if (tipo === "warn") warn.play();
+  if (tipo === "error") error.play();
 
-  if (tipo) {
-    setTimeout(() => o.style.display = "none", 2000);
-  }
+  if (tipo) setTimeout(() => o.style.display = "none", 2000);
 }
 
-// ===== VIBRACIÓN =====
+// ===== VIBRACIÓN REAL =====
 function vibrar(patron) {
   if (navigator.vibrate) {
     navigator.vibrate(patron);
