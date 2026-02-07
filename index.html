@@ -1,40 +1,58 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HEIGASER - Escáner</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HEIGASER - Escáner</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+.slide-btn {
+  position: relative;
+  width: 100%;
+  height: 52px;
+  border-radius: 30px;
+  background: #e0e0e0;
+  margin: 12px 0;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.slide-handle {
+  position: absolute;
+  top: 3px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  transition: left .25s;
+}
+.slide-label {
+  line-height: 52px;
+  font-weight: bold;
+  color: #444;
+}
+.entregado { background:#2ecc71; color:white; }
+.reintento { background:#f39c12; color:white; }
+</style>
 </head>
 
-<body style="font-family: Arial; text-align: center; padding: 15px;">
+<body style="font-family:Arial;text-align:center;padding:15px">
 
 <h1>HEIGASER</h1>
 <h3>Escanear Guía</h3>
 
-<!-- CONTENEDOR ESCÁNER -->
-<div style="
-  position: relative;
-  max-width: 360px;
-  margin: auto;
-">
-
-  <div id="reader" style="
-    width:100%;
-    height:220px;
-    border-radius:12px;
-    overflow:hidden;
-  "></div>
-
-  <!-- OVERLAY -->
+<div style="position:relative;max-width:360px;margin:auto">
+  <div id="reader" style="width:100%;height:220px;border-radius:12px;overflow:hidden"></div>
   <div id="overlay" style="
     display:none;
     position:absolute;
-    top:0;
-    left:0;
-    width:100%;
-    height:220px;
-    background:rgba(0,0,0,0.85);
+    inset:0;
+    background:rgba(0,0,0,.85);
     color:white;
     font-size:20px;
     font-weight:bold;
@@ -43,168 +61,112 @@
     justify-content:center;
     z-index:5;
     text-align:center;
-    padding:15px;
-  "></div>
+    padding:15px;"></div>
 </div>
 
-<!-- INFO PEDIDO -->
-<div id="info" style="
-  margin-top:15px;
-  font-size:16px;
-  font-weight:bold;
-"></div>
+<div id="info" style="margin-top:15px;font-size:16px;font-weight:bold"></div>
 
-<!-- BOTONES -->
-<button onclick="marcar('ENTREGADO')" style="
-  padding:14px;
-  margin:10px 0;
-  width:100%;
-  font-size:17px;
-">
-  ✅ ENTREGADO
-</button>
+<!-- SLIDE ENTREGADO -->
+<div class="slide-btn entregado" id="slideEntregado">
+  <div class="slide-handle" style="left:3px">✅</div>
+  <div class="slide-label">DESLIZA PARA ENTREGAR</div>
+</div>
 
-<button onclick="marcar('REINTENTO')" style="
-  padding:14px;
-  margin-bottom:10px;
-  width:100%;
-  font-size:17px;
-">
-  🔁 REINTENTO
-</button>
+<!-- SLIDE REINTENTO -->
+<div class="slide-btn reintento" id="slideReintento">
+  <div class="slide-handle" style="right:3px">🔁</div>
+  <div class="slide-label">DESLIZA PARA REINTENTO</div>
+</div>
 
-<!-- SONIDOS -->
 <audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
 <audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
 <audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 
 <script>
-let guiaActual = "";
+let guiaActual="";
+const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
 
-// 🔗 URL APPS SCRIPT
-const URL = "https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
-
-// ===== ESCÁNER =====
-const html5QrCode = new Html5Qrcode("reader");
-
-Html5Qrcode.getCameras().then(cameras => {
-  html5QrCode.start(
-    cameras[cameras.length - 1].id,
-    { fps: 10, qrbox: 180 },
-    texto => buscarGuia(texto)
-  );
+const html5QrCode=new Html5Qrcode("reader");
+Html5Qrcode.getCameras().then(c=>{
+  html5QrCode.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscarGuia(t));
 });
 
-// ===== BUSCAR GUÍA =====
-async function buscarGuia(guia) {
-  guiaActual = guia;
-  mostrarOverlay("🔍 BUSCANDO PEDIDO...");
-
-  try {
-    const r = await fetch(`${URL}?guia=${encodeURIComponent(guia)}`);
-    const data = await r.json();
-
-    ocultarOverlay();
-
-    if (!data.encontrado) {
-      mostrarResultado("❌ GUÍA NO EXISTE", "error");
-      sonar("error");
-      guiaActual = "";
-      return;
+async function buscarGuia(guia){
+  guiaActual=guia;
+  mostrar("🔍 BUSCANDO PEDIDO...");
+  try{
+    const r=await fetch(`${URL}?guia=${encodeURIComponent(guia)}`);
+    const d=await r.json();
+    ocultar();
+    if(!d.encontrado){
+      mostrarResultado("❌ GUÍA NO EXISTE","error");
+      sonar("error"); guiaActual=""; return;
     }
-
-    document.getElementById("info").innerHTML = `
-      📦 Guía: ${guia}<br>
-      👤 ${data.nombre || "SIN NOMBRE"}<br>
-      💰 $${Number(data.valor || 0).toLocaleString()}
-    `;
-
+    if(d.estado==="ENTREGADO"){
+      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
+      sonar("warn"); guiaActual=""; return;
+    }
+    info.innerHTML=`📦 ${guia}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
     sonar("ok");
-
-  } catch {
-    ocultarOverlay();
-    mostrarResultado("❌ ERROR DE CONEXIÓN", "error");
+  }catch{
+    ocultar();
+    mostrarResultado("❌ ERROR DE CONEXIÓN","error");
     sonar("error");
-    guiaActual = "";
+    guiaActual="";
   }
 }
 
-// ===== MARCAR ESTADO =====
-async function marcar(estado) {
-  if (!guiaActual) {
-    mostrarResultado("⚠️ ESCANEA UNA GUÍA", "warn");
-    sonar("warn");
-    return;
-  }
-
-  mostrarOverlay("⏳ PROCESANDO...");
-
-  try {
-    const r = await fetch(URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
+async function marcar(estado){
+  if(!guiaActual){mostrarResultado("⚠️ ESCANEA UNA GUÍA","warn");sonar("warn");return;}
+  mostrar("⏳ PROCESANDO...");
+  try{
+    const r=await fetch(URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
     });
-
-    const text = await r.text();
-    ocultarOverlay();
-
-    if (estado === "ENTREGADO" && text === "ACTUALIZADO") {
-      mostrarResultado("✅ PEDIDO ENTREGADO", "ok");
-      sonar("ok");
-    } 
-    else if (estado === "REINTENTO" && text === "REINTENTO") {
-      mostrarResultado("🔁 MARCADO PARA REINTENTO", "warn");
-      sonar("warn");
-    } 
-    else {
-      mostrarResultado("❌ ERROR", "error");
-      sonar("error");
+    const t=await r.text(); ocultar();
+    if(t==="ENTREGADO"){
+      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn");
+    }else if(estado==="ENTREGADO"){
+      mostrarResultado("✅ PEDIDO ENTREGADO","ok"); sonar("ok");
+    }else{
+      mostrarResultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn"); sonar("warn");
     }
-
-    guiaActual = "";
-    document.getElementById("info").innerHTML = "";
-
-  } catch {
-    ocultarOverlay();
-    mostrarResultado("❌ ERROR DE CONEXIÓN", "error");
+    guiaActual=""; info.innerHTML="";
+  }catch{
+    ocultar();
+    mostrarResultado("❌ ERROR DE CONEXIÓN","error");
     sonar("error");
   }
 }
 
-// ===== UI =====
-function mostrarOverlay(texto) {
-  const o = document.getElementById("overlay");
-  o.innerText = texto;
-  o.style.background = "rgba(0,0,0,0.85)";
-  o.style.display = "flex";
+function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
+function ocultar(){overlay.style.display="none";}
+function mostrarResultado(t,tipo){
+  overlay.innerText=t;
+  overlay.style.background=tipo==="ok"?"rgba(0,120,60,.85)":tipo==="warn"?"rgba(180,120,0,.85)":"rgba(160,0,0,.85)";
+  overlay.style.display="flex";
+  setTimeout(()=>overlay.style.display="none",1800);
+}
+function sonar(tipo){
+  if(navigator.vibrate)navigator.vibrate(200);
+  (tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError).play();
 }
 
-function ocultarOverlay() {
-  document.getElementById("overlay").style.display = "none";
+// SLIDE EVENTS
+function activarSlide(el,estado){
+  let startX;
+  el.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
+  el.addEventListener("touchend",e=>{
+    const endX=e.changedTouches[0].clientX;
+    if(estado==="ENTREGADO" && endX-startX>80) marcar("ENTREGADO");
+    if(estado==="REINTENTO" && startX-endX>80) marcar("REINTENTO");
+  });
 }
-
-function mostrarResultado(texto, tipo) {
-  const o = document.getElementById("overlay");
-  o.innerText = texto;
-
-  if (tipo === "ok") o.style.background = "rgba(0,120,60,0.85)";
-  else if (tipo === "warn") o.style.background = "rgba(180,120,0,0.85)";
-  else o.style.background = "rgba(160,0,0,0.85)";
-
-  o.style.display = "flex";
-  setTimeout(() => o.style.display = "none", 1800);
-}
-
-// ===== SONIDO + VIBRACIÓN =====
-function sonar(tipo) {
-  if (navigator.vibrate) navigator.vibrate(200);
-  let a = tipo === "ok" ? sonidoOk : tipo === "warn" ? sonidoWarn : sonidoError;
-  a.currentTime = 0;
-  a.play();
-}
+activarSlide(slideEntregado,"ENTREGADO");
+activarSlide(slideReintento,"REINTENTO");
 </script>
 
 </body>
 </html>
-
