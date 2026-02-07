@@ -22,6 +22,7 @@
   align-items:center;
   justify-content:center;
   font-weight:bold;
+  pointer-events:none;
 }
 .slide-handle{
   position:absolute;
@@ -36,7 +37,7 @@
   justify-content:center;
   font-size:22px;
   box-shadow:0 2px 6px rgba(0,0,0,.3);
-  transition:left .15s;
+  transition:left .2s;
 }
 .entregado{background:#2ecc71;color:#fff;}
 .reintento{background:#f39c12;color:#fff;}
@@ -60,60 +61,42 @@
     align-items:center;
     justify-content:center;
     border-radius:12px;
+    z-index:5;
     text-align:center;
-    padding:12px;"></div>
+    padding:12px;
+  "></div>
 </div>
 
-<div id="info" style="margin-top:12px;font-weight:bold"></div>
+<div id="info" style="margin-top:12px;font-weight:bold;font-size:16px"></div>
 
-<input type="file" id="foto" accept="image/*" capture="environment"
-       style="margin:10px 0;width:100%">
-
+<!-- SLIDE ENTREGADO -->
 <div class="slide-btn entregado" id="btnEntregado">
   <div class="slide-track">DESLIZA PARA ENTREGAR</div>
   <div class="slide-handle">✅</div>
 </div>
 
+<!-- SLIDE REINTENTO -->
 <div class="slide-btn reintento" id="btnReintento">
   <div class="slide-track">DESLIZA PARA REINTENTO</div>
   <div class="slide-handle">🔁</div>
 </div>
 
+<audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
+<audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+
 <script>
 let guiaActual="";
-let imagenBase64="";
-const URL="https://script.google.com/macros/s/AKfycbxuxWqOPnUAvNX-sirgTP3gZ8F-Q_PkEQVcRs3Q9j2lzvOqCWyJ3rQ8u2da6avwKSxPzQ/exec";
+const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
 
-/* ========= FOTO (COMPRESIÓN) ========= */
-foto.onchange=()=>{
-  const file=foto.files[0];
-  if(!file) return;
-
-  const img=new Image();
-  const reader=new FileReader();
-
-  reader.onload=e=>{
-    img.onload=()=>{
-      const canvas=document.createElement("canvas");
-      const max=800;
-      const scale=Math.min(max/img.width,1);
-      canvas.width=img.width*scale;
-      canvas.height=img.height*scale;
-      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-      imagenBase64=canvas.toDataURL("image/jpeg",0.7); // 🔥 CLAVE
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file);
-};
-
-/* ========= ESCÁNER ========= */
+// ESCÁNER
 const qr=new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(c=>{
-  qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscar(t));
+  qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscarGuia(t));
 });
 
-async function buscar(g){
+// BUSCAR GUÍA
+async function buscarGuia(g){
   guiaActual=g;
   mostrar("🔍 BUSCANDO PEDIDO...");
   try{
@@ -122,23 +105,40 @@ async function buscar(g){
     ocultar();
 
     if(!d.encontrado){
-      mensaje("❌ GUÍA NO EXISTE"); guiaActual=""; return;
-    }
-    if(d.estado==="ENTREGADO"){
-      mensaje("🚫 ESTA GUÍA YA FUE ENTREGADA"); guiaActual=""; return;
+      mostrarResultado("❌ GUÍA NO EXISTE","error");
+      sonar("error");
+      guiaActual="";
+      return;
     }
 
-    info.innerHTML=`📦 ${g}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
+    if(d.estado==="ENTREGADO"){
+      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
+      sonar("warn");
+      guiaActual="";
+      return;
+    }
+
+    info.innerHTML=`
+      📦 ${g}<br>
+      👤 ${d.nombre || "SIN NOMBRE"}<br>
+      💰 $${Number(d.valor || 0).toLocaleString()}
+    `;
+    sonar("ok");
+
   }catch{
-    ocultar(); mensaje("❌ ERROR DE CONEXIÓN"); guiaActual="";
+    ocultar();
+    mostrarResultado("❌ ERROR DE CONEXIÓN","error");
+    sonar("error");
+    guiaActual="";
   }
 }
 
-/* ========= ENVIAR ========= */
-async function enviar(estado){
-  if(!guiaActual){mensaje("⚠️ ESCANEA UNA GUÍA");return;}
-  if(estado==="ENTREGADO" && !imagenBase64){
-    mensaje("📸 FOTO OBLIGATORIA"); return;
+// MARCAR ESTADO
+async function marcar(estado){
+  if(!guiaActual){
+    mostrarResultado("⚠️ ESCANEA UNA GUÍA","warn");
+    sonar("warn");
+    return;
   }
 
   mostrar("⏳ PROCESANDO...");
@@ -146,49 +146,65 @@ async function enviar(estado){
     const r=await fetch(URL,{
       method:"POST",
       headers:{"Content-Type":"application/x-www-form-urlencoded"},
-      body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}&imagen=${encodeURIComponent(imagenBase64)}`
+      body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
     });
     const t=await r.text();
     ocultar();
 
-    if(t==="ENTREGADO") mensaje("🚫 YA ENTREGADO");
-    else if(estado==="ENTREGADO") mensaje("✅ PEDIDO ENTREGADO");
-    else mensaje("🔁 MARCADO PARA REINTENTO");
+    if(t==="ENTREGADO"){
+      mostrarResultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
+      sonar("warn");
+    }else if(estado==="ENTREGADO"){
+      mostrarResultado("✅ PEDIDO ENTREGADO","ok");
+      sonar("ok");
+    }else{
+      mostrarResultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn");
+      sonar("warn");
+    }
 
-    guiaActual=""; imagenBase64=""; info.innerHTML=""; foto.value="";
+    guiaActual="";
+    info.innerHTML="";
+
   }catch{
-    ocultar(); mensaje("❌ ERROR DE CONEXIÓN");
+    ocultar();
+    mostrarResultado("❌ ERROR DE CONEXIÓN","error");
+    sonar("error");
   }
 }
 
-/* ========= SLIDE REAL ========= */
+// UI
+function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
+function ocultar(){overlay.style.display="none";}
+function mostrarResultado(t,tipo){
+  overlay.innerText=t;
+  overlay.style.background=
+    tipo==="ok"?"rgba(0,120,60,.85)":
+    tipo==="warn"?"rgba(180,120,0,.85)":
+    "rgba(160,0,0,.85)";
+  overlay.style.display="flex";
+  setTimeout(()=>overlay.style.display="none",1700);
+}
+function sonar(tipo){
+  if(navigator.vibrate)navigator.vibrate(150);
+  (tipo==="ok"?sonidoOk:tipo==="warn"?sonidoWarn:sonidoError).play();
+}
+
+// SLIDERS
 function slider(el,estado){
   let startX;
   const h=el.querySelector(".slide-handle");
-  const max=el.offsetWidth-52;
-
-  el.addEventListener("touchstart",e=>{
-    startX=e.touches[0].clientX;
-  });
-
+  el.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
   el.addEventListener("touchmove",e=>{
     const dx=e.touches[0].clientX-startX;
-    h.style.left=Math.min(max,Math.max(3,dx))+"px";
+    h.style.left=Math.min(el.offsetWidth-49,Math.max(3,dx))+"px";
   });
-
   el.addEventListener("touchend",()=>{
-    if(h.offsetLeft>max*0.7) enviar(estado);
+    if(h.offsetLeft>el.offsetWidth-80) marcar(estado);
     h.style.left="3px";
   });
 }
-
 slider(btnEntregado,"ENTREGADO");
 slider(btnReintento,"REINTENTO");
-
-/* ========= UI ========= */
-function mostrar(t){overlay.innerText=t;overlay.style.display="flex";}
-function ocultar(){overlay.style.display="none";}
-function mensaje(t){mostrar(t);setTimeout(ocultar,1600);}
 </script>
 
 </body>
