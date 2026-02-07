@@ -1,49 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HEIGASER - Escáner</title>
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-  #scanner-box {
-    position: relative;
-    max-width: 400px;
-    height: 300px;
-    margin: auto;
-    overflow: hidden;
-    border-radius: 10px;
-  }
-
-  #reader {
-    width: 100%;
-    height: 300px;
-  }
-
-  #reader video {
-    width: 100% !important;
-    height: 300px !important;
-    object-fit: cover !important;
-  }
-
-  #overlay {
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    color: white;
-    font-size: 24px;
-    font-weight: bold;
-    border-radius: 10px;
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
-    text-align: center;
-    padding: 20px;
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HEIGASER - Escáner</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
 <body style="font-family: Arial; text-align: center; padding: 20px;">
@@ -51,12 +12,34 @@
 <h1>HEIGASER</h1>
 <h2>Escanear Guía</h2>
 
-<div id="scanner-box">
-  <div id="reader"></div>
-  <div id="overlay"></div>
+<!-- CONTENEDOR ESCÁNER -->
+<div style="position:relative; max-width:380px; margin:auto;">
+
+  <div id="reader" style="width:100%; height:260px;"></div>
+
+  <!-- OVERLAY -->
+  <div id="overlay" style="
+    display:none;
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:260px;
+    background:rgba(0,0,0,0.85);
+    color:white;
+    font-size:22px;
+    font-weight:bold;
+    border-radius:10px;
+    align-items:center;
+    justify-content:center;
+    z-index:10;
+    text-align:center;
+    padding:15px;
+  "></div>
 </div>
 
-<p id="guia" style="font-size:18px; font-weight:bold; margin-top:15px;"></p>
+<!-- INFO DEL PEDIDO -->
+<div id="info" style="margin-top:15px; font-size:17px; font-weight:bold;"></div>
 
 <button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
   ✅ ENTREGADO
@@ -66,6 +49,7 @@
   🔁 REINTENTO
 </button>
 
+<!-- SONIDOS -->
 <audio id="sonidoOk" src="https://actions.google.com/sounds/v1/cartoon/positive_ding.ogg"></audio>
 <audio id="sonidoWarn" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
 <audio id="sonidoError" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
@@ -73,90 +57,116 @@
 <script>
 let guiaActual = "";
 
+// 🔗 TU URL DE GOOGLE APPS SCRIPT
+const URL = "https://script.google.com/macros/s/AKfycbyPCcOKNTA3_Rm4ZmwNkg-uV6UBFkOtkixp0jSdIkw_9ug_JMo7gkhR7O7ICKcAX-G61Q/exec";
+
+// ===== ESCÁNER =====
 const html5QrCode = new Html5Qrcode("reader");
 
 Html5Qrcode.getCameras().then(cameras => {
   html5QrCode.start(
     cameras[cameras.length - 1].id,
-    { fps: 10, qrbox: 250 },
-    texto => {
-      guiaActual = texto;
-      document.getElementById("guia").innerText = "Guía: " + texto;
-    }
+    { fps: 10, qrbox: 220 },
+    texto => buscarGuia(texto)
   );
 });
 
-async function marcar(estado) {
-  if (!guiaActual) {
-    mostrar("⚠️ ESCANEA UNA GUÍA", "warn");
-    sonar("warn");
-    return;
-  }
-
-  mostrar("⏳ PROCESANDO...", "wait");
+async function buscarGuia(guia) {
+  guiaActual = guia;
+  mostrarOverlay("🔍 BUSCANDO PEDIDO...");
 
   try {
-    const r = await fetch(
-      "https://script.google.com/macros/s/AKfycbyPCcOKNTA3_Rm4ZmwNkg-uV6UBFkOtkixp0jSdIkw_9ug_JMo7gkhR7O7ICKcAX-G61Q/exec",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
-      }
-    );
+    const r = await fetch(`${URL}?guia=${encodeURIComponent(guia)}`);
+    const data = await r.json();
 
-    const text = await r.text();
+    ocultarOverlay();
 
-    // 🔥 LÓGICA CORRECTA
-    if (text === "GUARDADO") {
-      if (estado === "REINTENTO") {
-        mostrar("🔁 PEDIDO MARCADO PARA REINTENTO", "warn");
-        sonar("warn");
-      } else {
-        mostrar("✅ PEDIDO ENTREGADO", "ok");
-        sonar("ok");
-      }
-    }
-    else if (text === "ACTUALIZADO") {
-      mostrar("✅ PEDIDO ENTREGADO", "ok");
-      sonar("ok");
-    }
-    else if (text === "ENTREGADO") {
-      mostrar("🚫 YA FUE ENTREGADO", "warn");
-      sonar("warn");
-    }
-    else if (text === "DUPLICADO") {
-      mostrar("🚫 GUÍA YA REGISTRADA", "warn");
-      sonar("warn");
-    }
-    else {
-      mostrar("❌ ERROR DESCONOCIDO", "error");
+    if (!data.encontrado) {
+      mostrarResultado("❌ GUÍA NO EXISTE", "error");
       sonar("error");
+      return;
     }
 
-    guiaActual = "";
-    document.getElementById("guia").innerText = "";
+    document.getElementById("info").innerHTML =
+      `📦 Guía: ${guia}<br>👤 ${data.nombre || "SIN NOMBRE"}<br>💰 $${(data.valor || 0).toLocaleString()}`;
+
+    sonar("ok");
 
   } catch {
-    mostrar("❌ ERROR DE CONEXIÓN", "error");
+    ocultarOverlay();
+    mostrarResultado("❌ ERROR DE CONEXIÓN", "error");
     sonar("error");
   }
 }
 
-function mostrar(texto, tipo) {
+// ===== BOTONES =====
+async function marcar(estado) {
+  if (!guiaActual) {
+    mostrarResultado("⚠️ ESCANEA UNA GUÍA", "warn");
+    sonar("warn");
+    return;
+  }
+
+  mostrarOverlay("⏳ PROCESANDO...");
+
+  try {
+    const r = await fetch(URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
+    });
+
+    const text = await r.text();
+
+    if (text === "ENTREGADO") {
+      mostrarResultado("✅ PEDIDO ENTREGADO", "ok");
+      sonar("ok");
+    } 
+    else if (text === "REINTENTO") {
+      mostrarResultado("🔁 MARCADO PARA REINTENTO", "warn");
+      sonar("warn");
+    } 
+    else {
+      mostrarResultado("❌ ERROR", "error");
+      sonar("error");
+    }
+
+    guiaActual = "";
+    document.getElementById("info").innerHTML = "";
+
+  } catch {
+    mostrarResultado("❌ ERROR DE CONEXIÓN", "error");
+    sonar("error");
+  }
+}
+
+// ===== OVERLAY =====
+function mostrarOverlay(texto) {
   const o = document.getElementById("overlay");
   o.innerText = texto;
   o.style.display = "flex";
+}
+
+function ocultarOverlay() {
+  document.getElementById("overlay").style.display = "none";
+}
+
+function mostrarResultado(texto, tipo) {
+  const o = document.getElementById("overlay");
+  o.innerText = texto;
 
   if (tipo === "ok") o.style.background = "rgba(0,120,60,0.85)";
   else if (tipo === "warn") o.style.background = "rgba(180,120,0,0.85)";
-  else if (tipo === "wait") o.style.background = "rgba(0,0,0,0.85)";
   else o.style.background = "rgba(160,0,0,0.85)";
 
+  o.style.display = "flex";
   setTimeout(() => o.style.display = "none", 2000);
 }
 
+// ===== SONIDO + VIBRACIÓN =====
 function sonar(tipo) {
+  if (navigator.vibrate) navigator.vibrate(200);
+
   let a = tipo === "ok" ? sonidoOk : tipo === "warn" ? sonidoWarn : sonidoError;
   a.currentTime = 0;
   a.play();
