@@ -144,8 +144,8 @@ body{
   <div class="slide-handle">🔁</div>
 </div>
 
-<div class="slide-btn devolucion" id="btnDevolucion" style="display:none">
-  <div class="slide-track">Desliza para devolución</div>
+<div class="slide-btn devolucion" id="btnDevolucion">
+  <div class="slide-track">Desliza para DEVOLUCIÓN</div>
   <div class="slide-handle">↩️</div>
 </div>
 
@@ -159,12 +159,11 @@ body{
 
 <script>
 let guiaActual="";
-let estadoActual="";
 let audioListo=false;
 
 const URL="https://script.google.com/macros/s/AKfycbxRG-nLiNbXXzZMOBTd9Xqf5Ve1XLFKq5V2aOSkQEj48_cTiTciP_TMKgjW6-tOrBXxQw/exec";
 
-/* DESBLOQUEO AUDIO */
+/* AUDIO */
 function desbloquearAudio(){
   if(audioListo) return;
   sonidoOk.play().then(()=>{
@@ -174,7 +173,7 @@ function desbloquearAudio(){
 document.addEventListener("touchstart",desbloquearAudio,{once:true});
 document.addEventListener("click",desbloquearAudio,{once:true});
 
-/* ESCANER */
+/* ESCÁNER */
 const qr=new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(c=>{
   qr.start(c[c.length-1].id,{fps:10,qrbox:180},t=>buscar(t));
@@ -183,28 +182,24 @@ Html5Qrcode.getCameras().then(c=>{
 /* BUSCAR */
 async function buscar(g){
   guiaActual=g;
-  mostrar("🔍 BUSCANDO PEDIDO...");
+  mostrar("🔍 BUSCANDO...");
   try{
     const r=await fetch(`${URL}?guia=${encodeURIComponent(g)}`);
     const d=await r.json();
     ocultar();
 
     if(!d.encontrado){
-      resultado("❌ GUÍA NO EXISTE","error"); sonar("error"); guiaActual=""; return;
+      resultado("❌ NO EXISTE","error"); sonar("error"); guiaActual=""; return;
     }
-
     if(d.estado==="ENTREGADO"){
       resultado("🚫 YA ENTREGADO","warn"); sonar("warn"); guiaActual=""; return;
     }
-
-    estadoActual=d.estado||"";
-    btnDevolucion.style.display = estadoActual==="REINTENTO" ? "block" : "none";
 
     info.innerHTML=`📦 ${g}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
     sonar("ok");
 
   }catch{
-    ocultar(); resultado("❌ ERROR CONEXIÓN","error"); sonar("error");
+    ocultar(); resultado("❌ ERROR","error"); sonar("error");
   }
 }
 
@@ -215,8 +210,8 @@ async function enviar(estado){
     resultado("⚠️ ESCANEA UNA GUÍA","warn"); sonar("warn"); return;
   }
 
-  if(estado==="DEVOLUCION" && estadoActual!=="REINTENTO"){
-    resultado("⚠️ SOLO DESPUÉS DE REINTENTO","warn"); sonar("warn"); return;
+  if(estado==="DEVOLUCION"){
+    if(!confirm("¿CONFIRMAS DEVOLUCIÓN DEL PEDIDO?")) return;
   }
 
   mostrar("⏳ PROCESANDO...");
@@ -239,7 +234,7 @@ async function enviar(estado){
       resultado("🔁 REINTENTO","warn"); sonar("warn");
     }
 
-    guiaActual=""; estadoActual=""; info.innerHTML=""; btnDevolucion.style.display="none";
+    guiaActual=""; info.innerHTML="";
 
   }catch{
     ocultar(); resultado("❌ ERROR","error"); sonar("error");
