@@ -184,14 +184,17 @@ async function buscar(g){
     const r=await fetch(`${URL}?guia=${encodeURIComponent(g)}`);
     const d=await r.json();
     ocultar();
+
     if(!d.encontrado){
       resultado("❌ GUÍA NO EXISTE","error"); sonar("error"); guiaActual=""; return;
     }
     if(d.estado==="ENTREGADO"){
       resultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn"); guiaActual=""; return;
     }
+
     info.innerHTML=`📦 Guía: ${g}<br>👤 ${d.nombre||"SIN NOMBRE"}<br>💰 $${Number(d.valor||0).toLocaleString()}`;
     sonar("ok");
+
   }catch{
     ocultar(); resultado("❌ ERROR DE CONEXIÓN","error"); sonar("error"); guiaActual="";
   }
@@ -200,6 +203,7 @@ async function buscar(g){
 /* ENVIAR */
 async function enviar(estado){
   if(!guiaActual){resultado("⚠️ ESCANEA UNA GUÍA","warn");sonar("warn");return;}
+
   mostrar("⏳ PROCESANDO...");
   try{
     const r=await fetch(URL,{
@@ -207,18 +211,27 @@ async function enviar(estado){
       headers:{"Content-Type":"application/x-www-form-urlencoded"},
       body:`guia=${encodeURIComponent(guiaActual)}&estado=${estado}`
     });
+
     const t=await r.text();
     ocultar();
 
     if(t==="ENTREGADO"){
-      resultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn"); sonar("warn");
-    }else if(estado==="ENTREGADO"){
-      mostrarSelloEntregado();
-      resultado("✅ PEDIDO ENTREGADO","ok"); sonar("ok");
-    }else{
-      resultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn"); sonar("warn");
+      resultado("🚫 ESTA GUÍA YA FUE ENTREGADA","warn");
+      sonar("warn");
     }
-    guiaActual=""; info.innerHTML="";
+    else if(estado==="ENTREGADO"){
+      mostrarSelloEntregado();   // 👈 SOLO SE AGREGA ESTO
+      resultado("✅ PEDIDO ENTREGADO","ok");
+      sonar("ok");               // 👈 SONIDO COMO ANTES
+    }
+    else{
+      resultado("🔁 PEDIDO MARCADO PARA REINTENTO","warn");
+      sonar("warn");
+    }
+
+    guiaActual="";
+    info.innerHTML="";
+
   }catch{
     ocultar(); resultado("❌ ERROR DE CONEXIÓN","error"); sonar("error");
   }
@@ -228,6 +241,7 @@ async function enviar(estado){
 function slider(el,estado){
   let startX;
   const h=el.querySelector(".slide-handle");
+
   el.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
   el.addEventListener("touchmove",e=>{
     let dx=e.touches[0].clientX-startX;
