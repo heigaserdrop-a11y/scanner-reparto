@@ -7,15 +7,24 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
-<body style="font-family: Arial; text-align: center; padding: 20px;">
+<body style="font-family: Arial; text-align: center; padding: 15px;">
 
 <h1>HEIGASER</h1>
-<h2>Escanear Guía</h2>
+<h3>Escanear Guía</h3>
 
 <!-- CONTENEDOR ESCÁNER -->
-<div style="position:relative; max-width:380px; margin:auto;">
+<div style="
+  position: relative;
+  max-width: 360px;
+  margin: auto;
+">
 
-  <div id="reader" style="width:100%; height:260px;"></div>
+  <div id="reader" style="
+    width:100%;
+    height:220px;
+    border-radius:12px;
+    overflow:hidden;
+  "></div>
 
   <!-- OVERLAY -->
   <div id="overlay" style="
@@ -24,28 +33,43 @@
     top:0;
     left:0;
     width:100%;
-    height:260px;
+    height:220px;
     background:rgba(0,0,0,0.85);
     color:white;
-    font-size:22px;
+    font-size:20px;
     font-weight:bold;
-    border-radius:10px;
+    border-radius:12px;
     align-items:center;
     justify-content:center;
-    z-index:10;
+    z-index:5;
     text-align:center;
     padding:15px;
   "></div>
 </div>
 
-<!-- INFO DEL PEDIDO -->
-<div id="info" style="margin-top:15px; font-size:17px; font-weight:bold;"></div>
+<!-- INFO PEDIDO -->
+<div id="info" style="
+  margin-top:15px;
+  font-size:16px;
+  font-weight:bold;
+"></div>
 
-<button onclick="marcar('ENTREGADO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
+<!-- BOTONES -->
+<button onclick="marcar('ENTREGADO')" style="
+  padding:14px;
+  margin:10px 0;
+  width:100%;
+  font-size:17px;
+">
   ✅ ENTREGADO
 </button>
 
-<button onclick="marcar('REINTENTO')" style="padding:15px; margin:10px; width:90%; font-size:18px;">
+<button onclick="marcar('REINTENTO')" style="
+  padding:14px;
+  margin-bottom:10px;
+  width:100%;
+  font-size:17px;
+">
   🔁 REINTENTO
 </button>
 
@@ -57,7 +81,7 @@
 <script>
 let guiaActual = "";
 
-// 🔗 TU URL DE GOOGLE APPS SCRIPT
+// 🔗 URL APPS SCRIPT
 const URL = "https://script.google.com/macros/s/AKfycby3VWIt5CdIkrrrnwGjlRVc_0EvJgI7E3EfD3Afrk-SQLPEoUGzzgBjeLzhBwMEtPywww/exec";
 
 // ===== ESCÁNER =====
@@ -66,11 +90,12 @@ const html5QrCode = new Html5Qrcode("reader");
 Html5Qrcode.getCameras().then(cameras => {
   html5QrCode.start(
     cameras[cameras.length - 1].id,
-    { fps: 10, qrbox: 220 },
+    { fps: 10, qrbox: 180 },
     texto => buscarGuia(texto)
   );
 });
 
+// ===== BUSCAR GUÍA =====
 async function buscarGuia(guia) {
   guiaActual = guia;
   mostrarOverlay("🔍 BUSCANDO PEDIDO...");
@@ -84,11 +109,15 @@ async function buscarGuia(guia) {
     if (!data.encontrado) {
       mostrarResultado("❌ GUÍA NO EXISTE", "error");
       sonar("error");
+      guiaActual = "";
       return;
     }
 
-    document.getElementById("info").innerHTML =
-      `📦 Guía: ${guia}<br>👤 ${data.nombre || "SIN NOMBRE"}<br>💰 $${(data.valor || 0).toLocaleString()}`;
+    document.getElementById("info").innerHTML = `
+      📦 Guía: ${guia}<br>
+      👤 ${data.nombre || "SIN NOMBRE"}<br>
+      💰 $${Number(data.valor || 0).toLocaleString()}
+    `;
 
     sonar("ok");
 
@@ -96,10 +125,11 @@ async function buscarGuia(guia) {
     ocultarOverlay();
     mostrarResultado("❌ ERROR DE CONEXIÓN", "error");
     sonar("error");
+    guiaActual = "";
   }
 }
 
-// ===== BOTONES =====
+// ===== MARCAR ESTADO =====
 async function marcar(estado) {
   if (!guiaActual) {
     mostrarResultado("⚠️ ESCANEA UNA GUÍA", "warn");
@@ -117,12 +147,13 @@ async function marcar(estado) {
     });
 
     const text = await r.text();
+    ocultarOverlay();
 
-    if (text === "ENTREGADO") {
+    if (estado === "ENTREGADO" && text === "ACTUALIZADO") {
       mostrarResultado("✅ PEDIDO ENTREGADO", "ok");
       sonar("ok");
     } 
-    else if (text === "REINTENTO") {
+    else if (estado === "REINTENTO" && text === "REINTENTO") {
       mostrarResultado("🔁 MARCADO PARA REINTENTO", "warn");
       sonar("warn");
     } 
@@ -135,15 +166,17 @@ async function marcar(estado) {
     document.getElementById("info").innerHTML = "";
 
   } catch {
+    ocultarOverlay();
     mostrarResultado("❌ ERROR DE CONEXIÓN", "error");
     sonar("error");
   }
 }
 
-// ===== OVERLAY =====
+// ===== UI =====
 function mostrarOverlay(texto) {
   const o = document.getElementById("overlay");
   o.innerText = texto;
+  o.style.background = "rgba(0,0,0,0.85)";
   o.style.display = "flex";
 }
 
@@ -160,13 +193,12 @@ function mostrarResultado(texto, tipo) {
   else o.style.background = "rgba(160,0,0,0.85)";
 
   o.style.display = "flex";
-  setTimeout(() => o.style.display = "none", 2000);
+  setTimeout(() => o.style.display = "none", 1800);
 }
 
 // ===== SONIDO + VIBRACIÓN =====
 function sonar(tipo) {
   if (navigator.vibrate) navigator.vibrate(200);
-
   let a = tipo === "ok" ? sonidoOk : tipo === "warn" ? sonidoWarn : sonidoError;
   a.currentTime = 0;
   a.play();
@@ -175,4 +207,3 @@ function sonar(tipo) {
 
 </body>
 </html>
-
